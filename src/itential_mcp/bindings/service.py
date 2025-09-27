@@ -103,7 +103,7 @@ async def new(
     if decorator:
         description = inspect.cleandoc(
             f"""
-            {description}\nArgs:\ndata (dict): Object that provides input
+            {description}\nArgs:\ninput_params (dict): Object that provides input
             to the tool using the following input schema:\n{decorator}
             """
         )

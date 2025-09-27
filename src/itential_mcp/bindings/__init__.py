@@ -81,6 +81,50 @@ async def bind_to_tool(
 
     kwargs["description"] = description
 
+    # Generate appropriate input schema for dynamic tool types
+    if tool.type == "service":
+        # For service tools, check if we can extract schema from description
+        import re
+        schema_match = re.search(r'input schema:\n({.*})', description, re.DOTALL)
+        if schema_match:
+            try:
+                import json
+                schema_data = json.loads(schema_match.group(1).replace("'", '"'))
+                kwargs["input_schema"] = {
+                    "type": "object",
+                    "properties": {
+                        "input_params": {
+                            "type": "object",
+                            "description": "Input parameters for the service",
+                            **schema_data
+                        }
+                    },
+                    "required": ["input_params"] if schema_data.get("required") else []
+                }
+            except (json.JSONDecodeError, KeyError):
+                pass
+    elif tool.type == "endpoint":
+        # For endpoint tools, check if we can extract schema from description  
+        import re
+        schema_match = re.search(r'input schema:\n({.*})', description, re.DOTALL)
+        if schema_match:
+            try:
+                import json
+                schema_data = json.loads(schema_match.group(1).replace("'", '"'))
+                kwargs["input_schema"] = {
+                    "type": "object",
+                    "properties": {
+                        "data": {
+                            "type": "object", 
+                            "description": "Input data for the workflow",
+                            **schema_data
+                        }
+                    },
+                    "required": ["data"] if schema_data.get("required") else []
+                }
+            except (json.JSONDecodeError, KeyError):
+                pass
+
     tags = f"bindings,{tool.tool_name}"
 
     if tool.tags is not None:

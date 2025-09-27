@@ -359,7 +359,7 @@ class TestNew:
         assert isinstance(description, str)
         assert "Test service description" in description
         assert "Args:" in description
-        assert "data (dict)" in description
+        assert "input_params (dict)" in description
         assert "input schema:" in description
         assert "'type': 'object'" in description  # Python repr uses single quotes
 
@@ -382,7 +382,7 @@ class TestNew:
         assert func == service.run_service
         assert isinstance(description, str)
         assert "Args:" in description
-        assert "data (dict)" in description
+        assert "input_params (dict)" in description
 
     @pytest.mark.asyncio
     async def test_new_success_with_none_description(self, mock_platform_client, mock_service_tool):
