@@ -31,6 +31,7 @@ async def _get_service(platform_client: client.PlatformClient, t: config.Endpoin
     """
     res = await platform_client.gateway_manager.get_services()
 
+    # res is already the services array from the service layer
     for ele in res:
         if ele["service_metadata"]["name"] == t.name:
             service = ele
