@@ -132,9 +132,9 @@ async def start_workflow(
         Field(description="The name of the API endpoint used to start the workflow"),
     ],
     data: Annotated[
-        dict | None,
+        dict | str | None,
         Field(
-            description="Data to include in the request body when calling the route",
+            description="Data to include in the request body when calling the route. Can be a dict object or JSON string that will be parsed.",
             default=None,
         ),
     ],
@@ -175,7 +175,16 @@ async def start_workflow(
 
     client = ctx.request_context.lifespan_context.get("client")
 
-    res = await client.operations_manager.start_workflow(route_name, data)
+    # Handle both dict and JSON string inputs from different MCP clients
+    parsed_data = data
+    if isinstance(data, str):
+        import json
+        try:
+            parsed_data = json.loads(data)
+        except json.JSONDecodeError:
+            parsed_data = None
+
+    res = await client.operations_manager.start_workflow(route_name, parsed_data)
 
     metrics_data = res.get("metrics") or {}
 

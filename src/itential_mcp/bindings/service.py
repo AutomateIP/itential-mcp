@@ -31,6 +31,7 @@ async def _get_service(platform_client: client.PlatformClient, t: config.Endpoin
     """
     res = await platform_client.gateway_manager.get_services()
 
+    # res is already the services array from the service layer
     for ele in res:
         if ele["service_metadata"]["name"] == t.name:
             service = ele
@@ -44,7 +45,7 @@ async def _get_service(platform_client: client.PlatformClient, t: config.Endpoin
 async def run_service(
     ctx: Context,
     _tool_config: config.Tool | None = None,
-    input_params: dict| None = None
+    input_params: dict | str | None = None
 ) -> BaseModel:
     """Execute a service on the Itential Platform using the configured tool settings.
 
@@ -52,8 +53,8 @@ async def run_service(
         ctx (Context): The FastMCP context object containing request context and lifecycle information.
         _tool_config (config.Tool | None): The tool configuration object containing service details.
             Defaults to None.
-        input_params (dict | None): Optional input parameters to pass to the service execution.
-            Defaults to None.
+        input_params (dict | str | None): Input parameters for service execution. Can be a dict object
+            or JSON string that will be parsed. Defaults to None.
 
     Returns:
         BaseModel: The response from the service execution containing results and status information.
@@ -68,8 +69,17 @@ async def run_service(
     service_name = service["service_metadata"]["name"]
     cluster = service["service_metadata"]["location"]
 
+    # Handle both dict and JSON string inputs from different MCP clients
+    parsed_params = input_params
+    if isinstance(input_params, str):
+        import json
+        try:
+            parsed_params = json.loads(input_params)
+        except json.JSONDecodeError:
+            parsed_params = None
+
     return await gateway_manager.run_service(
-        ctx, name=service_name, cluster=cluster, input_params=input_params
+        ctx, name=service_name, cluster=cluster, input_params=parsed_params
     )
 
 
