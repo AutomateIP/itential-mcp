@@ -70,7 +70,7 @@ async def _get_trigger(platform_client: client.PlatformClient, t: config.Endpoin
 async def start_workflow(
     ctx: Context,
     _tool_config: config.EndpointTool | None = None,
-    data: dict | None = None,
+    data: dict | str | None = None,
 ) -> BaseModel:
     """Start a workflow using the configured endpoint trigger.
 
@@ -82,7 +82,8 @@ async def start_workflow(
         ctx (Context): The FastMCP context containing request and lifecycle information.
         _tool_config (config.EndpointTool | None): The endpoint tool configuration.
             Defaults to None.
-        data (dict | None): Optional input data to pass to the workflow. Defaults to None.
+        data (dict | str | None): Input data for workflow execution. Can be a dict object
+            or JSON string that will be parsed. Defaults to None.
 
     Returns:
         BaseModel: The workflow execution response from the operations manager.
@@ -95,8 +96,17 @@ async def start_workflow(
 
     trigger = await _get_trigger(platform_client, _tool_config)
 
+    # Handle both dict and JSON string inputs from different MCP clients
+    parsed_data = data
+    if isinstance(data, str):
+        import json
+        try:
+            parsed_data = json.loads(data)
+        except json.JSONDecodeError:
+            parsed_data = None
+
     return await operations_manager.start_workflow(
-        ctx, route_name=trigger["routeName"], data=data
+        ctx, route_name=trigger["routeName"], data=parsed_data
     )
 
 
