@@ -31,6 +31,7 @@ async def _get_service(platform_client: client.PlatformClient, t: config.Endpoin
     """
     res = await platform_client.gateway_manager.get_services()
 
+    # res is already the services array from the service layer
     for ele in res:
         if ele["service_metadata"]["name"] == t.name:
             service = ele
@@ -102,7 +103,7 @@ async def new(
     if decorator:
         description = inspect.cleandoc(
             f"""
-            {description}\nArgs:\ndata (dict): Object that provides input
+            {description}\nArgs:\ninput_params (dict): Object that provides input
             to the tool using the following input schema:\n{decorator}
             """
         )
