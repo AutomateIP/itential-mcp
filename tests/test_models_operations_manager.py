@@ -417,6 +417,35 @@ class TestStartAgentResponse:
         assert response.session_id == "sess-002"
         assert response.status == "COMPLETE"
 
+    def test_start_agent_response_basic(self):
+        """Test basic StartAgentResponse creation"""
+        response = StartAgentResponse(session_id="sess-abc", status="RUNNING")
+
+        assert response.session_id == "sess-abc"
+        assert response.status == "RUNNING"
+
+    def test_start_agent_response_missing_session_id(self):
+        """Test StartAgentResponse requires session_id"""
+        with pytest.raises(ValidationError) as exc_info:
+            StartAgentResponse(status="RUNNING")
+
+        errors = exc_info.value.errors()
+        assert any(e["loc"] == ("session_id",) for e in errors)
+
+    def test_start_agent_response_missing_status(self):
+        """Test StartAgentResponse requires status"""
+        with pytest.raises(ValidationError) as exc_info:
+            StartAgentResponse(session_id="sess-abc")
+
+        errors = exc_info.value.errors()
+        assert any(e["loc"] == ("status",) for e in errors)
+
+    def test_start_agent_response_arbitrary_status(self):
+        """Test StartAgentResponse accepts any status string"""
+        for status in ("RUNNING", "COMPLETE", "ERROR", "PAUSED"):
+            response = StartAgentResponse(session_id="sess-abc", status=status)
+            assert response.status == status
+
 
 class TestAgentElement:
     """Test the AgentElement model"""
