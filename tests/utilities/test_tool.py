@@ -2,12 +2,111 @@
 # GNU General Public License v3.0+ (see LICENSE or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+from __future__ import annotations
+
 import os
 import tempfile
 import pytest
 from unittest.mock import patch, MagicMock
 
-from itential_mcp.utilities.tool import tags, itertools, display_tools, display_tags
+from typing import Union
+
+from pydantic import BaseModel
+
+from itential_mcp.utilities.tool import (
+    tags,
+    itertools,
+    display_tools,
+    display_tags,
+    get_json_schema,
+)
+
+
+class _SchemaModelA(BaseModel):
+    """Simple BaseModel used to test get_json_schema regression behavior."""
+
+    a: str
+
+
+class _SchemaModelB(BaseModel):
+    """Second BaseModel used to test get_json_schema union handling."""
+
+    b: int
+
+
+class TestGetJsonSchema:
+    """Test the get_json_schema function"""
+
+    def test_get_json_schema_with_basemodel(self):
+        """A plain BaseModel return annotation should produce an object schema"""
+
+        def fn() -> _SchemaModelA:
+            return _SchemaModelA(a="x")
+
+        schema = get_json_schema(fn)
+
+        assert schema["type"] == "object"
+        assert "a" in schema["properties"]
+
+    def test_get_json_schema_with_union_of_basemodels_pipe_syntax(self):
+        """A `X | Y` union of BaseModel subclasses should produce a valid
+        schema instead of raising ValueError"""
+
+        def fn() -> _SchemaModelA | _SchemaModelB:
+            return _SchemaModelA(a="x")
+
+        schema = get_json_schema(fn)
+
+        assert "anyOf" in schema
+        assert len(schema["anyOf"]) == 2
+
+    def test_get_json_schema_with_typing_union_of_basemodels(self):
+        """A typing.Union of BaseModel subclasses should produce a valid
+        schema instead of raising ValueError"""
+
+        def fn() -> Union[_SchemaModelA, _SchemaModelB]:
+            return _SchemaModelA(a="x")
+
+        schema = get_json_schema(fn)
+
+        assert "anyOf" in schema
+        assert len(schema["anyOf"]) == 2
+
+    def test_get_json_schema_with_non_basemodel_raises(self):
+        """A return annotation that is not a BaseModel should raise ValueError"""
+
+        def fn() -> dict:
+            return {}
+
+        with pytest.raises(ValueError):
+            get_json_schema(fn)
+
+    def test_get_json_schema_with_union_of_non_basemodels_raises(self):
+        """A union of non-BaseModel types should raise ValueError"""
+
+        def fn() -> int | str:
+            return 1
+
+        with pytest.raises(ValueError):
+            get_json_schema(fn)
+
+    def test_get_json_schema_operations_manager_trigger_automation(self):
+        """Regression test: trigger_automation's union return type must
+        produce a valid schema without raising"""
+        from itential_mcp.tools import operations_manager
+
+        schema = get_json_schema(operations_manager.trigger_automation)
+
+        assert "anyOf" in schema
+
+    def test_get_json_schema_operations_manager_start_workflow(self):
+        """Regression test: start_workflow's union return type must
+        produce a valid schema without raising"""
+        from itential_mcp.tools import operations_manager
+
+        schema = get_json_schema(operations_manager.start_workflow)
+
+        assert "anyOf" in schema
 
 
 class TestTagsDecorator:
