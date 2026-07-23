@@ -1857,4 +1857,3 @@ class TestExposeAgentTool:
         mock_context.request_context.lifespan_context.get.return_value.operations_manager.delete_automation.assert_called_once_with(
             "auto-rollback"
         )
-
