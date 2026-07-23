@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-07-23
+
+### Added
+- Agent session manager service, tools, and models (#354)
+- Agent automation support in operations manager, including StartAgentResponse
+  and duck-typed return handling for start_workflow (#355)
+- trigger_automation tool and get_automations unified view covering workflows,
+  agents, and other automation types; start_workflow is now a stable,
+  non-deprecated wrapper delegating to trigger_automation (#356)
+
+### Fixed
+- Add missing `from __future__ import annotations` import in two services
+  modules and add pagination test coverage for get_automations (#360)
+- Handle Union-of-BaseModel return types in tool output schema generation,
+  fixing a startup warning for trigger_automation/start_workflow whose
+  output_schema could not previously be derived (#361)
+
+### Note
+- 0.12.2 (previous release) contained a feature commit (5 new inventory
+  manager tools, #319) alongside its patch-shaped bugfixes. Per semver this
+  should have been a minor release, not a patch release. 0.13.0 corrects the
+  version sequence going forward.
+
 ## [0.12.2] - 2026-07-23
 
 ### Added
