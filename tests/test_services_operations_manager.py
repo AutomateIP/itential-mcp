@@ -1974,3 +1974,152 @@ class TestGetAutomations:
         assert len(result) == 1
         assert result[0]["component_type"] == "ucm_compliance_plan"
         assert result[0]["name"] == "Compliance Plan Auto"
+
+    @pytest.mark.asyncio
+    async def test_paginates_automations_across_multiple_pages(self, service):
+        """get_automations fetches subsequent pages when total exceeds one page of results"""
+        automation_id_1 = "auto-id-1"
+        automation_id_2 = "auto-id-2"
+
+        mock_automations_page_1 = MagicMock()
+        mock_automations_page_1.json.return_value = {
+            "data": [
+                {
+                    "_id": automation_id_1,
+                    "name": "Workflow Auto",
+                    "description": "A workflow automation",
+                    "componentType": "workflows",
+                    "componentId": "wf-comp-1",
+                }
+            ],
+            "metadata": {"total": 2},
+        }
+
+        mock_automations_page_2 = MagicMock()
+        mock_automations_page_2.json.return_value = {
+            "data": [
+                {
+                    "_id": automation_id_2,
+                    "name": "Agent Auto",
+                    "description": None,
+                    "componentType": "agents",
+                    "componentId": "agent-comp-2",
+                }
+            ],
+            "metadata": {"total": 2},
+        }
+
+        mock_triggers_response = MagicMock()
+        mock_triggers_response.json.return_value = {
+            "data": [
+                {
+                    "actionId": automation_id_1,
+                    "routeName": "workflow-auto-route",
+                    "schema": {"type": "object", "properties": {}},
+                    "lastExecuted": None,
+                }
+            ],
+            "metadata": {"total": 1},
+        }
+
+        service.client.get = AsyncMock(
+            side_effect=[
+                mock_automations_page_1,
+                mock_automations_page_2,
+                mock_triggers_response,
+            ]
+        )
+
+        result = await service.get_automations()
+
+        assert len(result) == 2
+
+        # Verify automations required two paginated calls, plus one for triggers
+        assert service.client.get.call_count == 3
+
+        first_call = service.client.get.call_args_list[0]
+        assert first_call[0] == ("/operations-manager/automations",)
+        assert first_call[1]["params"]["skip"] == 0
+
+        second_call = service.client.get.call_args_list[1]
+        assert second_call[0] == ("/operations-manager/automations",)
+        assert second_call[1]["params"]["skip"] == 100
+
+        matched = next(r for r in result if r["name"] == "Workflow Auto")
+        assert matched["route_name"] == "workflow-auto-route"
+        assert matched["input_schema"] == {"type": "object", "properties": {}}
+
+        unmatched = next(r for r in result if r["name"] == "Agent Auto")
+        assert unmatched["route_name"] is None
+        assert unmatched["input_schema"] is None
+
+    @pytest.mark.asyncio
+    async def test_paginates_triggers_across_multiple_pages(self, service):
+        """get_automations fetches subsequent trigger pages when total exceeds one page"""
+        automation_id_1 = "auto-id-1"
+
+        mock_automations_response = MagicMock()
+        mock_automations_response.json.return_value = {
+            "data": [
+                {
+                    "_id": automation_id_1,
+                    "name": "Workflow Auto",
+                    "description": "A workflow automation",
+                    "componentType": "workflows",
+                    "componentId": "wf-comp-1",
+                }
+            ],
+            "metadata": {"total": 1},
+        }
+
+        mock_triggers_page_1 = MagicMock()
+        mock_triggers_page_1.json.return_value = {
+            "data": [
+                {
+                    "actionId": "unrelated-automation",
+                    "routeName": "unrelated-route",
+                    "schema": {"type": "object", "properties": {}},
+                    "lastExecuted": None,
+                }
+            ],
+            "metadata": {"total": 101},
+        }
+
+        mock_triggers_page_2 = MagicMock()
+        mock_triggers_page_2.json.return_value = {
+            "data": [
+                {
+                    "actionId": automation_id_1,
+                    "routeName": "workflow-auto-route",
+                    "schema": {"type": "object", "properties": {}},
+                    "lastExecuted": "2026-01-01T00:00:00Z",
+                }
+            ],
+            "metadata": {"total": 101},
+        }
+
+        service.client.get = AsyncMock(
+            side_effect=[
+                mock_automations_response,
+                mock_triggers_page_1,
+                mock_triggers_page_2,
+            ]
+        )
+
+        result = await service.get_automations()
+
+        assert len(result) == 1
+
+        # Verify triggers required two paginated calls, plus one for automations
+        assert service.client.get.call_count == 3
+
+        second_call = service.client.get.call_args_list[1]
+        assert second_call[0] == ("/operations-manager/triggers",)
+        assert second_call[1]["params"]["skip"] == 0
+
+        third_call = service.client.get.call_args_list[2]
+        assert third_call[0] == ("/operations-manager/triggers",)
+        assert third_call[1]["params"]["skip"] == 100
+
+        assert result[0]["route_name"] == "workflow-auto-route"
+        assert result[0]["last_executed"] == "2026-01-01T00:00:00Z"
