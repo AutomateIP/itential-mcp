@@ -209,7 +209,15 @@ class Server:
 
                 try:
                     schema = toolutils.get_json_schema(f)
-                    if schema["type"] == "object":
+
+                    # The MCP spec requires an outputSchema to be an object
+                    # type at the root. Return types that are a Union of
+                    # BaseModel subclasses produce a top-level `anyOf`
+                    # schema instead, which FastMCP itself rejects as a
+                    # custom output_schema. In that case, omit
+                    # output_schema entirely and let FastMCP infer and
+                    # wrap the schema directly from the return annotation.
+                    if schema.get("type") == "object":
                         kwargs["output_schema"] = schema
 
                 except ValueError:

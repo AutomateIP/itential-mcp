@@ -2,15 +2,18 @@
 # GNU General Public License v3.0+ (see LICENSE or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+from __future__ import annotations
+
 import os
 import inspect
 import pathlib
 import importlib.util
+import types
 
-from typing import Any, Callable, Iterator, Tuple, Sequence
-from typing import get_type_hints
+from typing import Any, Callable, Iterator, Tuple, Sequence, Union
+from typing import get_type_hints, get_origin, get_args
 
-from pydantic import BaseModel
+from pydantic import BaseModel, TypeAdapter
 
 from ..cli import terminal
 
@@ -51,25 +54,43 @@ def tags(*tag_list) -> Callable:
     return decorator
 
 
-def get_json_schema(fn: Callable) -> str:
+def get_json_schema(fn: Callable) -> dict[str, Any]:
     """
     Extract JSON schema from a function's return type annotation.
 
     This function analyzes a function's type hints to extract the JSON schema
-    from the return type. The return type must be a Pydantic BaseModel subclass
-    for schema generation to work properly.
+    from the return type. The return type must either be a Pydantic BaseModel
+    subclass, or a Union (`X | Y` / `typing.Union[X, Y]`) whose members are all
+    Pydantic BaseModel subclasses, for schema generation to work properly.
 
     Args:
         fn (Callable): The function to extract the JSON schema from
 
     Returns:
-        str: The JSON schema as a string representation
+        dict[str, Any]: The JSON schema as a dictionary
 
     Raises:
         ValueError: If the function's return type is not a BaseModel subclass
+            and not a Union of BaseModel subclasses
     """
     hints = get_type_hints(fn)
     ret = hints.get("return", Any)
+
+    origin = get_origin(ret)
+
+    # Handle a Union (`X | Y` or `typing.Union[X, Y]`) of BaseModel subclasses
+    if origin is types.UnionType or origin is Union:
+        members = get_args(ret)
+        if not members or not all(
+            inspect.isclass(member) and issubclass(member, BaseModel)
+            for member in members
+        ):
+            raise ValueError(
+                "tool functions must subclass BaseModel or return a union of "
+                "BaseModel subclasses"
+            )
+
+        return TypeAdapter(ret).json_schema()
 
     # Check if ret is actually a class before using issubclass
     if not inspect.isclass(ret) or not issubclass(ret, BaseModel):
