@@ -4,6 +4,8 @@
 
 from __future__ import annotations
 
+import asyncio
+
 from typing import Annotated
 
 from pydantic import Field
@@ -119,8 +121,10 @@ async def describe_session(
 
     client = ctx.request_context.lifespan_context.get("client")
 
-    session = await client.agent_session_manager.get_session(session_id)
-    raw_messages = await client.agent_session_manager.get_session_messages(session_id)
+    session, raw_messages = await asyncio.gather(
+        client.agent_session_manager.get_session(session_id),
+        client.agent_session_manager.get_session_messages(session_id),
+    )
 
     agent_snapshot = session.get("agentSnapshot") or {}
     agent_name = agent_snapshot.get("name")
