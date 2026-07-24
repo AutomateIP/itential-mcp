@@ -24,7 +24,7 @@ class TestGatewayManagerTools:
     def setup_method(self):
         """Set up test fixtures before each test method."""
         self.mock_context = AsyncMock(spec=Context)
-        self.mock_context.info = AsyncMock()
+        self.mock_context.debug = AsyncMock()
 
         # Create mock client
         self.mock_client = MagicMock()
@@ -116,7 +116,7 @@ class TestGetServices(TestGatewayManagerTools):
         result = await get_services(self.mock_context)
 
         # Verify context info was called
-        self.mock_context.info.assert_called_once_with("inside get_services(...)")
+        self.mock_context.debug.assert_called_once_with("inside get_services(...)")
 
         # Verify client method was called
         self.mock_client.gateway_manager.get_services.assert_called_once()
@@ -239,7 +239,7 @@ class TestGetServices(TestGatewayManagerTools):
             await get_services(self.mock_context)
 
         # Verify context info was still called
-        self.mock_context.info.assert_called_once_with("inside get_services(...)")
+        self.mock_context.debug.assert_called_once_with("inside get_services(...)")
 
 
 class TestGetGateways(TestGatewayManagerTools):
@@ -293,7 +293,7 @@ class TestGetGateways(TestGatewayManagerTools):
         result = await get_gateways(self.mock_context)
 
         # Verify context info was called
-        self.mock_context.info.assert_called_once_with("inside get_gateways(...)")
+        self.mock_context.debug.assert_called_once_with("inside get_gateways(...)")
 
         # Verify client method was called
         self.mock_gateway_manager_service.get_gateways.assert_called_once()
@@ -394,7 +394,7 @@ class TestGetGateways(TestGatewayManagerTools):
             await get_gateways(self.mock_context)
 
         # Verify context info was still called
-        self.mock_context.info.assert_called_once_with("inside get_gateways(...)")
+        self.mock_context.debug.assert_called_once_with("inside get_gateways(...)")
 
 
 class TestRunService(TestGatewayManagerTools):
@@ -455,7 +455,7 @@ class TestRunService(TestGatewayManagerTools):
         )
 
         # Verify context info was called
-        self.mock_context.info.assert_called_once_with("inside run_service(...)")
+        self.mock_context.debug.assert_called_once_with("inside run_service(...)")
 
         # Verify client method was called with correct parameters
         self.mock_client.gateway_manager.run_service.assert_called_once_with(
@@ -654,7 +654,7 @@ class TestRunService(TestGatewayManagerTools):
             )
 
         # Verify context info was still called
-        self.mock_context.info.assert_called_once_with("inside run_service(...)")
+        self.mock_context.debug.assert_called_once_with("inside run_service(...)")
 
     @pytest.mark.asyncio
     async def test_run_service_with_empty_output(self):
@@ -825,7 +825,7 @@ class TestGatewayManagerErrorHandling:
     def setup_method(self):
         """Set up test fixtures."""
         self.mock_context = AsyncMock(spec=Context)
-        self.mock_context.info = AsyncMock()
+        self.mock_context.debug = AsyncMock()
         self.mock_client = MagicMock()
         self.mock_context.request_context.lifespan_context.get.return_value = (
             self.mock_client

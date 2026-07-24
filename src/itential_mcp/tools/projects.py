@@ -37,7 +37,7 @@ async def get_projects(
     Raises:
         Exception: If there is an error retrieving projects from the platform
     """
-    await ctx.info("inside get_projects(...)")
+    await ctx.debug("inside get_projects(...)")
     client = ctx.request_context.lifespan_context.get("client")
     res = await client.automation_studio.get_projects()
 
@@ -79,7 +79,7 @@ async def describe_project(
     Raises:
         Exception: If there is an error retrieving the project or project is not found
     """
-    await ctx.info("inside describe_project(...)")
+    await ctx.debug("inside describe_project(...)")
 
     client = ctx.request_context.lifespan_context.get("client")
 

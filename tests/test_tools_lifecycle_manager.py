@@ -71,7 +71,7 @@ class TestGetResources:
     def mock_context(self):
         """Create a mock FastMCP context"""
         context = AsyncMock(spec=Context)
-        context.info = AsyncMock()
+        context.debug = AsyncMock()
 
         # Mock the nested structure
         mock_client = AsyncMock()
@@ -107,7 +107,7 @@ class TestGetResources:
         assert result.root[1].description == "Second resource"
 
         # Verify service calls
-        mock_context.info.assert_called_once_with("inside get_resources(...)")
+        mock_context.debug.assert_called_once_with("inside get_resources(...)")
         mock_client.lifecycle_manager.get_resources.assert_called_once()
 
     @pytest.mark.asyncio
@@ -161,7 +161,7 @@ class TestCreateResource:
     def mock_context(self):
         """Create a mock FastMCP context"""
         context = AsyncMock(spec=Context)
-        context.info = AsyncMock()
+        context.debug = AsyncMock()
 
         mock_client = AsyncMock()
         mock_lifecycle_manager = AsyncMock()
@@ -187,7 +187,7 @@ class TestCreateResource:
         )
 
         assert isinstance(result, CreateResourceResponse)
-        mock_context.info.assert_called_once_with("inside create_resource(...)")
+        mock_context.debug.assert_called_once_with("inside create_resource(...)")
         mock_client.lifecycle_manager.describe_resource.assert_called_once_with(
             "test-resource"
         )
@@ -249,7 +249,7 @@ class TestDescribeResource:
     def mock_context(self):
         """Create a mock FastMCP context"""
         context = AsyncMock(spec=Context)
-        context.info = AsyncMock()
+        context.debug = AsyncMock()
 
         mock_client = AsyncMock()
         mock_lifecycle_manager = AsyncMock()
@@ -449,7 +449,7 @@ class TestGetInstances:
     def mock_context(self):
         """Create a mock FastMCP context"""
         context = AsyncMock(spec=Context)
-        context.info = AsyncMock()
+        context.debug = AsyncMock()
 
         mock_client = AsyncMock()
         mock_lifecycle_manager = AsyncMock()
@@ -551,7 +551,7 @@ class TestDescribeInstance:
     def mock_context(self):
         """Create a mock FastMCP context"""
         context = AsyncMock(spec=Context)
-        context.info = AsyncMock()
+        context.debug = AsyncMock()
 
         mock_client = AsyncMock()
         mock_lifecycle_manager = AsyncMock()
@@ -620,7 +620,7 @@ class TestRunAction:
     def mock_context(self):
         """Create a mock FastMCP context"""
         context = AsyncMock(spec=Context)
-        context.info = AsyncMock()
+        context.debug = AsyncMock()
 
         mock_client = AsyncMock()
         mock_lifecycle_manager = AsyncMock()
@@ -783,7 +783,7 @@ class TestGetActionExecutions:
     def mock_context(self):
         """Create a mock FastMCP context"""
         context = AsyncMock(spec=Context)
-        context.info = AsyncMock()
+        context.debug = AsyncMock()
 
         mock_client = AsyncMock()
         mock_lifecycle_manager = AsyncMock()
@@ -858,7 +858,7 @@ class TestGetActionExecutions:
         assert result.root[1].status == "running"
 
         # Verify service calls
-        mock_context.info.assert_called_once_with("inside get_action_executions(...)")
+        mock_context.debug.assert_called_once_with("inside get_action_executions(...)")
         mock_client.lifecycle_manager.get_action_executions.assert_called_once_with(
             resource_name="test-resource", instance_name="test-instance"
         )
@@ -1182,7 +1182,7 @@ class TestIntegration:
     def mock_context(self):
         """Create a comprehensive mock FastMCP context"""
         context = AsyncMock(spec=Context)
-        context.info = AsyncMock()
+        context.debug = AsyncMock()
 
         mock_client = AsyncMock()
         mock_lifecycle_manager = AsyncMock()
@@ -1307,7 +1307,7 @@ class TestIntegration:
         await lifecycle_manager.get_resources(mock_context)
 
         # Verify context methods were called
-        mock_context.info.assert_called_with("inside get_resources(...)")
+        mock_context.debug.assert_called_with("inside get_resources(...)")
         mock_context.request_context.lifespan_context.get.assert_called_with("client")
 
     def test_model_imports(self):

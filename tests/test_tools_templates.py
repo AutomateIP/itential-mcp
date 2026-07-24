@@ -21,7 +21,7 @@ class TestAutomationStudioTemplates:
     def mock_context(self):
         """Create a mock FastMCP context."""
         mock_ctx = MagicMock()
-        mock_ctx.info = AsyncMock()
+        mock_ctx.debug = AsyncMock()
         mock_ctx.request_context.lifespan_context.get.return_value = MagicMock()
         return mock_ctx
 
@@ -81,7 +81,7 @@ class TestAutomationStudioTemplates:
         )
 
         # Verify context logging was called
-        mock_context.info.assert_called_once_with("inside get_templates(...)")
+        mock_context.debug.assert_called_once_with("inside get_templates(...)")
 
         # Verify response structure and data
         assert isinstance(result, list)
@@ -402,7 +402,7 @@ class TestDescribeTemplate:
     def mock_context(self):
         """Create a mock FastMCP context."""
         mock_ctx = MagicMock()
-        mock_ctx.info = AsyncMock()
+        mock_ctx.debug = AsyncMock()
         mock_ctx.request_context.lifespan_context.get.return_value = MagicMock()
         return mock_ctx
 
@@ -448,7 +448,7 @@ class TestDescribeTemplate:
         )
 
         # Verify context logging was called
-        mock_context.info.assert_called_once_with("inside get_templates(...)")
+        mock_context.debug.assert_called_once_with("inside get_templates(...)")
 
         # Verify response structure and data
         assert isinstance(result, DescribeTemplateResponse)
@@ -551,7 +551,7 @@ class TestCreateTemplate:
     def mock_context(self):
         """Create a mock FastMCP context."""
         mock_ctx = MagicMock()
-        mock_ctx.info = AsyncMock()
+        mock_ctx.debug = AsyncMock()
         mock_ctx.request_context.lifespan_context.get.return_value = MagicMock()
         return mock_ctx
 
@@ -610,7 +610,7 @@ class TestCreateTemplate:
         )
 
         # Verify context logging was called
-        mock_context.info.assert_called_once_with("inside create_template(...)")
+        mock_context.debug.assert_called_once_with("inside create_template(...)")
 
         # Verify response structure and data
         assert isinstance(result, DescribeTemplateResponse)
@@ -729,7 +729,7 @@ class TestUpdateTemplate:
     def mock_context(self):
         """Create a mock FastMCP context."""
         mock_ctx = MagicMock()
-        mock_ctx.info = AsyncMock()
+        mock_ctx.debug = AsyncMock()
         mock_ctx.request_context.lifespan_context.get.return_value = MagicMock()
         return mock_ctx
 
@@ -784,7 +784,7 @@ class TestUpdateTemplate:
         )
 
         # Verify context logging was called
-        mock_context.info.assert_called_once_with("inside update_template(...)")
+        mock_context.debug.assert_called_once_with("inside update_template(...)")
 
         # Verify response structure and data
         assert isinstance(result, DescribeTemplateResponse)

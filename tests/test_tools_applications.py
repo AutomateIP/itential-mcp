@@ -25,7 +25,7 @@ class TestStartApplicationTool:
     def setup_method(self):
         """Set up shared mock fixtures."""
         self.mock_context = AsyncMock(spec=Context)
-        self.mock_context.info = AsyncMock()
+        self.mock_context.debug = AsyncMock()
 
         self.mock_client = MagicMock()
         self.mock_app_service = MagicMock()
@@ -100,7 +100,7 @@ class TestStartApplicationTool:
 
     @pytest.mark.asyncio
     async def test_start_application_logs_entry(self):
-        """start_application must log entry via ctx.info."""
+        """start_application must log entry via ctx.debug."""
         self.mock_app_service.start_application.return_value = {
             "id": "Tags",
             "state": "RUNNING",
@@ -108,4 +108,4 @@ class TestStartApplicationTool:
 
         await start_application(self.mock_context, name="Tags", timeout=10)
 
-        self.mock_context.info.assert_called_once_with("inside start_application(...)")
+        self.mock_context.debug.assert_called_once_with("inside start_application(...)")

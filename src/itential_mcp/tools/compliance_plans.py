@@ -32,7 +32,7 @@ async def get_compliance_plans(
     Raises:
         Exception: If there is an error retrieving compliance plans from the platform
     """
-    await ctx.info("inside get_compliance_plans(...)")
+    await ctx.debug("inside get_compliance_plans(...)")
     client = ctx.request_context.lifespan_context.get("client")
     results = await client.configuration_manager.get_compliance_plans()
     return models.GetCompliancePlansResponse(plans=results)
@@ -59,7 +59,7 @@ async def run_compliance_plan(
     Raises:
         ValueError: If the specified compliance plan name is not found
     """
-    await ctx.info("inside run_compliance_plan(...)")
+    await ctx.debug("inside run_compliance_plan(...)")
     client = ctx.request_context.lifespan_context.get("client")
     data = await client.configuration_manager.run_compliance_plan(name=name)
     compliance_instance = models.CompliancePlanInstance(

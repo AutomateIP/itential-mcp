@@ -63,7 +63,7 @@ class TestGetInventories:
     def mock_context(self):
         """Create a mock Context object"""
         context = AsyncMock(spec=Context)
-        context.info = AsyncMock()
+        context.debug = AsyncMock()
 
         # Mock client
         mock_client = MagicMock()
@@ -138,14 +138,14 @@ class TestGetInventories:
 
     @pytest.mark.asyncio
     async def test_get_inventories_logs_info(self, mock_context):
-        """Test get_inventories logs info message"""
+        """Test get_inventories logs debug message"""
         mock_client = mock_context.request_context.lifespan_context.get.return_value
         mock_client.inventory_manager = MagicMock()
         mock_client.inventory_manager.get_inventories = AsyncMock(return_value=[])
 
         await inventory_manager.get_inventories(mock_context)
 
-        mock_context.info.assert_called_once_with("inside get_inventories(...)")
+        mock_context.debug.assert_called_once_with("inside get_inventories(...)")
 
     @pytest.mark.asyncio
     async def test_get_inventories_handles_missing_fields(self, mock_context):
@@ -178,7 +178,7 @@ class TestDescribeInventory:
     def mock_context(self):
         """Create a mock Context object"""
         context = AsyncMock(spec=Context)
-        context.info = AsyncMock()
+        context.debug = AsyncMock()
 
         # Mock client
         mock_client = MagicMock()
@@ -259,7 +259,7 @@ class TestDescribeInventory:
 
     @pytest.mark.asyncio
     async def test_describe_inventory_logs_info(self, mock_context):
-        """Test describe_inventory logs info message"""
+        """Test describe_inventory logs debug message"""
         mock_client = mock_context.request_context.lifespan_context.get.return_value
         mock_client.inventory_manager = MagicMock()
         mock_client.inventory_manager.describe_inventory = AsyncMock(
@@ -268,7 +268,7 @@ class TestDescribeInventory:
 
         await inventory_manager.describe_inventory(mock_context, name="test")
 
-        mock_context.info.assert_called_once_with("inside describe_inventory(...)")
+        mock_context.debug.assert_called_once_with("inside describe_inventory(...)")
 
 
 class TestCreateInventory:
@@ -278,7 +278,7 @@ class TestCreateInventory:
     def mock_context(self):
         """Create a mock Context object"""
         context = AsyncMock(spec=Context)
-        context.info = AsyncMock()
+        context.debug = AsyncMock()
 
         # Mock client
         mock_client = MagicMock()
@@ -386,7 +386,7 @@ class TestCreateInventory:
 
     @pytest.mark.asyncio
     async def test_create_inventory_logs_info(self, mock_context):
-        """Test create_inventory logs info message"""
+        """Test create_inventory logs debug message"""
         mock_client = mock_context.request_context.lifespan_context.get.return_value
         mock_client.inventory_manager = MagicMock()
         mock_client.inventory_manager.create_inventory = AsyncMock(
@@ -401,7 +401,7 @@ class TestCreateInventory:
             devices=None,
         )
 
-        mock_context.info.assert_called_once_with("inside create_inventory(...)")
+        mock_context.debug.assert_called_once_with("inside create_inventory(...)")
 
 
 class TestAddNodesToInventory:
@@ -411,7 +411,7 @@ class TestAddNodesToInventory:
     def mock_context(self):
         """Create a mock Context object"""
         context = AsyncMock(spec=Context)
-        context.info = AsyncMock()
+        context.debug = AsyncMock()
 
         # Mock client
         mock_client = MagicMock()
@@ -556,7 +556,7 @@ class TestAddNodesToInventory:
 
     @pytest.mark.asyncio
     async def test_add_nodes_to_inventory_logs_info(self, mock_context):
-        """Test add_nodes_to_inventory logs info message"""
+        """Test add_nodes_to_inventory logs debug message"""
         mock_client = mock_context.request_context.lifespan_context.get.return_value
         mock_client.inventory_manager = MagicMock()
         mock_client.inventory_manager.add_nodes_to_inventory = AsyncMock(
@@ -569,7 +569,7 @@ class TestAddNodesToInventory:
             nodes=[{"name": "node1", "attributes": {"itential_host": "1.1.1.1"}}],
         )
 
-        mock_context.info.assert_called_once_with("inside add_nodes_to_inventory(...)")
+        mock_context.debug.assert_called_once_with("inside add_nodes_to_inventory(...)")
 
 
 class TestDeleteInventory:
@@ -579,7 +579,7 @@ class TestDeleteInventory:
     def mock_context(self):
         """Create a mock Context object"""
         context = AsyncMock(spec=Context)
-        context.info = AsyncMock()
+        context.debug = AsyncMock()
 
         # Mock client
         mock_client = MagicMock()
@@ -638,7 +638,7 @@ class TestDeleteInventory:
 
     @pytest.mark.asyncio
     async def test_delete_inventory_logs_info(self, mock_context):
-        """Test delete_inventory logs info message"""
+        """Test delete_inventory logs debug message"""
         mock_client = mock_context.request_context.lifespan_context.get.return_value
         mock_client.inventory_manager = MagicMock()
         mock_client.inventory_manager.delete_inventory = AsyncMock(
@@ -647,7 +647,7 @@ class TestDeleteInventory:
 
         await inventory_manager.delete_inventory(mock_context, name="test")
 
-        mock_context.info.assert_called_once_with("inside delete_inventory(...)")
+        mock_context.debug.assert_called_once_with("inside delete_inventory(...)")
 
 
 class TestToolsIntegration:
@@ -657,7 +657,7 @@ class TestToolsIntegration:
     def mock_context(self):
         """Create a mock Context object for integration tests"""
         context = AsyncMock(spec=Context)
-        context.info = AsyncMock()
+        context.debug = AsyncMock()
 
         mock_client = MagicMock()
 

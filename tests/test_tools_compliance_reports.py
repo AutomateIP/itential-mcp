@@ -22,7 +22,7 @@ class TestDescribeComplianceReportTool:
     def setup_method(self):
         """Set up shared mock fixtures."""
         self.mock_context = AsyncMock(spec=Context)
-        self.mock_context.info = AsyncMock()
+        self.mock_context.debug = AsyncMock()
 
         self.mock_client = MagicMock()
         self.mock_cm_service = MagicMock()
@@ -103,11 +103,11 @@ class TestDescribeComplianceReportTool:
 
     @pytest.mark.asyncio
     async def test_describe_compliance_report_logs_entry(self):
-        """describe_compliance_report must log entry via ctx.info."""
+        """describe_compliance_report must log entry via ctx.debug."""
         self.mock_cm_service.describe_compliance_report.return_value = {"id": "x"}
 
         await describe_compliance_report(self.mock_context, report_id="x")
 
-        self.mock_context.info.assert_called_once_with(
+        self.mock_context.debug.assert_called_once_with(
             "inside describe_compliance_report(...)"
         )

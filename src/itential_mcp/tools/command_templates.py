@@ -32,7 +32,7 @@ async def get_command_templates(
     Raises:
         Exception: If there is an error retrieving command templates from the platform
     """
-    await ctx.info("inside get_command_templates(...)")
+    await ctx.debug("inside get_command_templates(...)")
 
     client = ctx.request_context.lifespan_context.get("client")
 
@@ -76,7 +76,7 @@ async def describe_command_template(
     Raises:
         Exception: If there is an error retrieving the command template or template is not found
     """
-    await ctx.info("inside describe_command_template(...)")
+    await ctx.debug("inside describe_command_template(...)")
 
     client = ctx.request_context.lifespan_context.get("client")
 
@@ -121,7 +121,7 @@ async def run_command_template(
     Raises:
         Exception: If there is an error running the command template or template is not found
     """
-    await ctx.info("inside run_command_templates(...)")
+    await ctx.debug("inside run_command_templates(...)")
 
     client = ctx.request_context.lifespan_context.get("client")
 
@@ -179,7 +179,7 @@ async def run_command(
     Raises:
         Exception: If there is an error running the command on the devices
     """
-    await ctx.info("inside run_command(...)")
+    await ctx.debug("inside run_command(...)")
 
     client = ctx.request_context.lifespan_context.get("client")
 
@@ -321,7 +321,7 @@ async def create_command_template(
             }
         ]
     """
-    await ctx.info("inside create_command_template(...)")
+    await ctx.debug("inside create_command_template(...)")
 
     client = ctx.request_context.lifespan_context.get("client")
 
@@ -465,7 +465,7 @@ async def update_command_template(
             }
         ]
     """
-    await ctx.info("inside update_command_template(...)")
+    await ctx.debug("inside update_command_template(...)")
 
     client = ctx.request_context.lifespan_context.get("client")
 

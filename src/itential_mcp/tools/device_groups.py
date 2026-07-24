@@ -37,7 +37,7 @@ async def get_device_groups(
     Raises:
         Exception: If there is an error retrieving device groups from the platform
     """
-    await ctx.info("inside get_device_groups(...)")
+    await ctx.debug("inside get_device_groups(...)")
 
     client = ctx.request_context.lifespan_context.get("client")
 
@@ -82,7 +82,7 @@ async def create_device_group(
     Raises:
         ValueError: If a device group with the same name already exists
     """
-    await ctx.info("inside create_device_group(...)")
+    await ctx.debug("inside create_device_group(...)")
 
     client = ctx.request_context.lifespan_context.get("client")
 
@@ -135,7 +135,7 @@ async def add_devices_to_group(
         Exception: If there is an error adding devices to the group
 
     """
-    await ctx.info("inside add_devices_to_group(...)")
+    await ctx.debug("inside add_devices_to_group(...)")
 
     client = ctx.request_context.lifespan_context.get("client")
 
@@ -184,7 +184,7 @@ async def remove_devices_from_group(
     Raises:
         Exception: If there is an error removing devices from the group
     """
-    await ctx.info("inside remove_devices_from_group(...)")
+    await ctx.debug("inside remove_devices_from_group(...)")
 
     client = ctx.request_context.lifespan_context.get("client")
 

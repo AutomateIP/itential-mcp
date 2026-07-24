@@ -142,7 +142,7 @@ async def get_workflows(
         - The 'input_schema' field defines required input parameters for workflow execution
         - Only enabled workflows are returned by this function
     """
-    await ctx.info("inside get_workflows(...)")
+    await ctx.debug("inside get_workflows(...)")
 
     client = ctx.request_context.lifespan_context.get("client")
 
@@ -198,7 +198,7 @@ async def get_agents(
         - Use route_name with trigger_automation to trigger an agent that has an endpoint
         - Agents without a route_name must be exposed first via expose_agent
     """
-    await ctx.info("inside get_agents(...)")
+    await ctx.debug("inside get_agents(...)")
     client = ctx.request_context.lifespan_context.get("client")
     data = await client.operations_manager.get_agents()
 
@@ -251,7 +251,7 @@ async def get_automations(
         - Use trigger_automation with route_name to execute an automation
         - Use expose_workflow if route_name is None for a workflow automation
     """
-    await ctx.info("inside get_automations(...)")
+    await ctx.debug("inside get_automations(...)")
     client = ctx.request_context.lifespan_context.get("client")
     data = await client.operations_manager.get_automations()
 
@@ -321,7 +321,7 @@ async def trigger_automation(
         - Use describe_session with session_id to monitor agent execution progress
         - Use expose_workflow first if the automation has no route_name
     """
-    await ctx.info("inside trigger_automation(...)")
+    await ctx.debug("inside trigger_automation(...)")
     client = ctx.request_context.lifespan_context.get("client")
 
     if isinstance(data, str):
@@ -441,7 +441,7 @@ async def get_jobs(
             - name: Job name
             - status: Current job status (error, complete, running, cancelled, incomplete, paused)
     """
-    await ctx.info("running get_jobs(...)")
+    await ctx.debug("running get_jobs(...)")
 
     client = ctx.request_context.lifespan_context.get("client")
 
@@ -491,7 +491,7 @@ async def describe_job(
             - updated: Last update timestamp
             - variables: Job variable outputs produced during workflow execution
     """
-    await ctx.info("inside describe_job(...)")
+    await ctx.debug("inside describe_job(...)")
 
     client = ctx.request_context.lifespan_context.get("client")
 
@@ -580,7 +580,7 @@ async def expose_workflow(
         Exception: If there is an error retrieving workflow information or
             creating the automation.
     """
-    await ctx.info("inside expose_workflow(...)")
+    await ctx.debug("inside expose_workflow(...)")
 
     client = ctx.request_context.lifespan_context.get("client")
 
@@ -678,7 +678,7 @@ async def expose_agent(
         exceptions.ConfigurationException: If the endpoint trigger cannot be created.
         Exception: If the automation cannot be created.
     """
-    await ctx.info("inside expose_agent(...)")
+    await ctx.debug("inside expose_agent(...)")
     client = ctx.request_context.lifespan_context.get("client")
 
     res = await client.operations_manager.create_automation(

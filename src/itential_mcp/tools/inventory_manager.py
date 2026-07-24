@@ -38,7 +38,7 @@ async def get_inventories(
     Raises:
         Exception: If there is an error retrieving inventories from the platform
     """
-    await ctx.info("inside get_inventories(...)")
+    await ctx.debug("inside get_inventories(...)")
 
     client = ctx.request_context.lifespan_context.get("client")
 
@@ -81,7 +81,7 @@ async def describe_inventory(
     Raises:
         NotFoundError: If the specified inventory name cannot be found
     """
-    await ctx.info("inside describe_inventory(...)")
+    await ctx.debug("inside describe_inventory(...)")
 
     client = ctx.request_context.lifespan_context.get("client")
 
@@ -142,7 +142,7 @@ async def create_inventory(
     Raises:
         ValueError: If an inventory with the same name already exists
     """
-    await ctx.info("inside create_inventory(...)")
+    await ctx.debug("inside create_inventory(...)")
 
     client = ctx.request_context.lifespan_context.get("client")
 
@@ -203,7 +203,7 @@ async def add_nodes_to_inventory(
         NotFoundError: If the specified inventory name cannot be found
         Exception: If there is an error adding nodes to the inventory
     """
-    await ctx.info("inside add_nodes_to_inventory(...)")
+    await ctx.debug("inside add_nodes_to_inventory(...)")
 
     client = ctx.request_context.lifespan_context.get("client")
 
@@ -242,7 +242,7 @@ async def delete_inventory(
     Raises:
         NotFoundError: If the specified inventory name cannot be found
     """
-    await ctx.info("inside delete_inventory(...)")
+    await ctx.debug("inside delete_inventory(...)")
 
     client = ctx.request_context.lifespan_context.get("client")
 

@@ -30,7 +30,7 @@ async def get_applications(
     Raises:
         Exception: If there is an error retrieving applications from the platform
     """
-    await ctx.info("inside get_applications(...)")
+    await ctx.debug("inside get_applications(...)")
 
     client = ctx.request_context.lifespan_context.get("client")
 
@@ -86,7 +86,7 @@ async def start_application(
         - Application name is case-sensitive
         - Function polls application state every second until timeout
     """
-    await ctx.info("inside start_application(...)")
+    await ctx.debug("inside start_application(...)")
     client = ctx.request_context.lifespan_context.get("client")
     data = await client.applications.start_application(name, timeout)
     return models.StartApplicationResponse(name=data["id"], state=data["state"])
@@ -124,7 +124,7 @@ async def stop_application(
         - Application name is case-sensitive
         - Function polls application state every second until timeout
     """
-    await ctx.info("inside stop_application(...)")
+    await ctx.debug("inside stop_application(...)")
     client = ctx.request_context.lifespan_context.get("client")
     data = await client.applications.stop_application(name=name, timeout=timeout)
     return models.StopApplicationResponse(name=data["id"], state=data["state"])
@@ -163,7 +163,7 @@ async def restart_application(
         - For STOPPED applications, use `start_application` instead
         - Function polls application state every second until timeout
     """
-    await ctx.info("inside restart_application(...)")
+    await ctx.debug("inside restart_application(...)")
     client = ctx.request_context.lifespan_context.get("client")
     data = await client.applications.restart_application(name=name, timeout=timeout)
     return models.RestartApplicationResponse(name=data["id"], state=data["state"])

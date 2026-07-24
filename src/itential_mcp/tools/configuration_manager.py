@@ -44,7 +44,7 @@ async def render_template(
     Raises:
         Exception: If there is an error rendering the template
     """
-    await ctx.info("inside render_template()")
+    await ctx.debug("inside render_template()")
     client = ctx.request_context.lifespan_context.get("client")
 
     # Parse variables if it's a JSON string

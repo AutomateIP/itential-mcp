@@ -24,7 +24,7 @@ class TestRenderTemplateTool:
     def setup_method(self):
         """Set up shared mock fixtures."""
         self.mock_context = AsyncMock(spec=Context)
-        self.mock_context.info = AsyncMock()
+        self.mock_context.debug = AsyncMock()
 
         self.mock_client = MagicMock()
         self.mock_cm_service = MagicMock()
@@ -120,7 +120,7 @@ class TestRenderTemplateTool:
 
     @pytest.mark.asyncio
     async def test_render_template_logs_entry(self):
-        """render_template must log entry via ctx.info."""
+        """render_template must log entry via ctx.debug."""
         self.mock_cm_service.render_template.return_value = "output"
 
         await render_template(
@@ -129,4 +129,4 @@ class TestRenderTemplateTool:
             variables=None,
         )
 
-        self.mock_context.info.assert_called_once_with("inside render_template()")
+        self.mock_context.debug.assert_called_once_with("inside render_template()")

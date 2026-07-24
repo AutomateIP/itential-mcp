@@ -16,7 +16,7 @@ class TestHealthTool:
     def setup_method(self):
         """Set up test fixtures before each test method."""
         self.mock_context = AsyncMock(spec=Context)
-        self.mock_context.info = AsyncMock()
+        self.mock_context.debug = AsyncMock()
 
         # Create mock client with health service
         self.mock_client = MagicMock()
@@ -204,7 +204,7 @@ class TestHealthTool:
         result = await get_health(self.mock_context)
 
         # Verify context info was called
-        self.mock_context.info.assert_called_once_with("inside get_health(...)")
+        self.mock_context.debug.assert_called_once_with("inside get_health(...)")
 
         # Verify all service methods were called
         self.mock_health_service.get_status_health.assert_called_once()
@@ -408,7 +408,7 @@ class TestHealthTool:
             await get_health(self.mock_context)
 
         # Verify context info was called before error
-        self.mock_context.info.assert_called_once_with("inside get_health(...)")
+        self.mock_context.debug.assert_called_once_with("inside get_health(...)")
 
     @pytest.mark.asyncio
     async def test_get_health_context_setup(self):

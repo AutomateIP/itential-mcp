@@ -27,7 +27,7 @@ class TestGetCompliancePlansTool:
     def setup_method(self):
         """Set up shared mock fixtures."""
         self.mock_context = AsyncMock(spec=Context)
-        self.mock_context.info = AsyncMock()
+        self.mock_context.debug = AsyncMock()
 
         self.mock_client = MagicMock()
         self.mock_cm_service = MagicMock()
@@ -82,12 +82,12 @@ class TestGetCompliancePlansTool:
 
     @pytest.mark.asyncio
     async def test_get_compliance_plans_logs_entry(self):
-        """get_compliance_plans must log entry via ctx.info."""
+        """get_compliance_plans must log entry via ctx.debug."""
         self.mock_cm_service.get_compliance_plans.return_value = []
 
         await get_compliance_plans(self.mock_context)
 
-        self.mock_context.info.assert_called_once_with(
+        self.mock_context.debug.assert_called_once_with(
             "inside get_compliance_plans(...)"
         )
 
@@ -102,7 +102,7 @@ class TestRunCompliancePlanTool:
     def setup_method(self):
         """Set up shared mock fixtures."""
         self.mock_context = AsyncMock(spec=Context)
-        self.mock_context.info = AsyncMock()
+        self.mock_context.debug = AsyncMock()
 
         self.mock_client = MagicMock()
         self.mock_cm_service = MagicMock()
