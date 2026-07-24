@@ -129,6 +129,40 @@ class TestOAuthProviderBuilding:
         assert result == mock_provider
         mock_oauth_provider.assert_called_once_with(base_url="http://localhost:8000")
 
+    @patch("itential_mcp.server.auth.OAuthProvider")
+    def test_build_oauth_provider_base_url_suffix_removal_only(
+        self, mock_oauth_provider
+    ):
+        """Test that base_url derivation only strips the literal suffix.
+
+        Regression test for a bug where ``str.rstrip("/auth/callback")`` was
+        used instead of ``str.removesuffix("/auth/callback")``. ``rstrip``
+        treats its argument as a set of characters to strip from the end of
+        the string, not a literal suffix, so a redirect URI whose host ends
+        in any of the characters in "/auth/callback" (e.g. "u" or "k" from a
+        ".uk" TLD) would have those trailing host characters incorrectly
+        eaten as well. Under the old ``rstrip`` behavior this would have
+        produced "https://auth-host.example." instead of the correct
+        "https://auth-host.example.uk".
+        """
+        from itential_mcp.config.converters import auth_to_dict
+
+        auth_config = auth_to_dict(
+            make_auth_config(
+                type="oauth",
+                oauth_redirect_uri="https://auth-host.example.uk/auth/callback",
+            )
+        )
+
+        mock_provider = MagicMock()
+        mock_oauth_provider.return_value = mock_provider
+
+        _build_oauth_provider(auth_config)
+
+        mock_oauth_provider.assert_called_once_with(
+            base_url="https://auth-host.example.uk"
+        )
+
     def test_build_oauth_provider_missing_required_fields(self):
         """Test OAuth provider building with missing required fields."""
         from itential_mcp.config.converters import auth_to_dict
@@ -198,6 +232,53 @@ class TestOAuthProviderBuilding:
             upstream_client_secret="test_secret",
             token_verifier=mock_verifier_instance,
             base_url="http://localhost:8000",
+        )
+
+    @patch("itential_mcp.server.auth.OAuthProxy")
+    @patch("fastmcp.server.auth.StaticTokenVerifier")
+    def test_build_oauth_proxy_provider_base_url_suffix_removal_only(
+        self, mock_token_verifier, mock_oauth_proxy
+    ):
+        """Test that base_url derivation only strips the literal suffix.
+
+        Regression test for a bug where ``str.rstrip("/auth/callback")`` was
+        used instead of ``str.removesuffix("/auth/callback")``. ``rstrip``
+        treats its argument as a set of characters to strip from the end of
+        the string, not a literal suffix, so a redirect URI whose host ends
+        in any of the characters in "/auth/callback" (e.g. "u" or "k" from a
+        ".uk" TLD) would have those trailing host characters incorrectly
+        eaten as well. Under the old ``rstrip`` behavior this would have
+        produced "https://auth-host.example." instead of the correct
+        "https://auth-host.example.uk".
+        """
+        from itential_mcp.config.converters import auth_to_dict
+
+        auth_config = auth_to_dict(
+            make_auth_config(
+                type="oauth_proxy",
+                oauth_client_id="test_client",
+                oauth_client_secret="test_secret",
+                oauth_authorization_url="https://accounts.google.com/oauth/authorize",
+                oauth_token_url="https://oauth2.googleapis.com/token",
+                oauth_redirect_uri="https://auth-host.example.uk/auth/callback",
+            )
+        )
+
+        mock_verifier_instance = MagicMock()
+        mock_token_verifier.return_value = mock_verifier_instance
+
+        mock_provider = MagicMock()
+        mock_oauth_proxy.return_value = mock_provider
+
+        _build_oauth_proxy_provider(auth_config)
+
+        mock_oauth_proxy.assert_called_once_with(
+            upstream_authorization_endpoint="https://accounts.google.com/oauth/authorize",
+            upstream_token_endpoint="https://oauth2.googleapis.com/token",
+            upstream_client_id="test_client",
+            upstream_client_secret="test_secret",
+            token_verifier=mock_verifier_instance,
+            base_url="https://auth-host.example.uk",
         )
 
     def test_build_oauth_proxy_provider_missing_fields(self):

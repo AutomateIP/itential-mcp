@@ -121,7 +121,7 @@ def _build_oauth_provider(auth_config: dict[str, Any]) -> AuthProvider:
         )
 
     oauth_kwargs = {
-        "base_url": auth_config["redirect_uri"].rstrip("/auth/callback"),
+        "base_url": auth_config["redirect_uri"].removesuffix("/auth/callback"),
     }
 
     # Add optional parameters
@@ -179,7 +179,7 @@ def _build_oauth_proxy_provider(auth_config: dict[str, Any]) -> AuthProvider:
         # Fallback to JWT verifier if StaticTokenVerifier not available
         token_verifier = JWTVerifier()
 
-    base_url = auth_config["redirect_uri"].rstrip("/auth/callback")
+    base_url = auth_config["redirect_uri"].removesuffix("/auth/callback")
 
     oauth_kwargs = {
         "upstream_authorization_endpoint": auth_config["authorization_url"],
@@ -224,6 +224,8 @@ def _get_provider_config(
     Raises:
         ConfigurationException: If provider type is not supported.
     """
+    # TODO: not currently called by any provider builder — oauth_provider_type
+    # config/CLI flag is accepted but has no effect until this is wired in.
     config: dict[str, Any] = {}
 
     # Add custom scopes if specified
