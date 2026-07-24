@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.1] - 2026-07-24
+
+### Security
+- Pin fastmcp to >=3.0.2,<4 and declare MCP 2025-11-25 protocol version in README (#363)
+- Bump pyjwt and python-multipart to patched versions, closing a JWK-as-HMAC-secret
+  forgery advisory (pyjwt) and a negative Content-Length DoS advisory
+  (python-multipart) (#365)
+- Bump cryptography to 46.0.7 and constrain to the 46.x line, addressing the
+  vulnerable-OpenSSL-in-wheels advisory; deliberately holds at 46.x rather than
+  47.x/48.x pending evaluation of breaking API removals in those lines (#366)
+
+### Fixed
+- Tolerate scalar `cpuUsage` values and missing `description` fields in
+  get_health response payloads from platform versions that send this data in
+  an unexpected shape (#367)
+- Use `str.removesuffix()` instead of `str.rstrip()` when deriving OAuth
+  `base_url`, fixing silent corruption of redirect URIs whose host ends in a
+  character from the old rstrip character set (e.g. `.uk`-TLD hosts) (#368)
+
+### Changed
+- Demote internal tool entry-trace log calls from info to debug level across
+  all tool modules -- these were developer-only breadcrumbs riding the
+  client-visible notification channel at an inappropriately high severity (#364)
+
+### Note
+- The cryptography advisory addressed above (GHSA-537c-gmf6-5ccf) is not fully
+  closed by this release: the advisory's patched floor is 48.0.1, not 46.0.7,
+  and this release deliberately stays on the 46.x line. This advisory will
+  continue to show as open in Dependabot until a follow-up release evaluates
+  the 47.x/48.x breaking API changes.
+- PR #369 (fastmcp bump to >=3.4.1,<4, resolving starlette CVEs) is
+  intentionally not included in this release due to its elevated risk profile
+  (breaking major transitive starlette bump) and will ship separately.
+
 ## [0.13.0] - 2026-07-23
 
 ### Added
