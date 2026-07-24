@@ -792,3 +792,48 @@ class TestHealthTool:
         assert result.server.version == "0.0.0"
         assert len(result.applications) == 0
         assert len(result.adapters) == 0
+
+    @pytest.mark.asyncio
+    async def test_get_health_platform_version_drift(self):
+        """Test get_health tolerates platform-version-driven response shape drift.
+
+        Some Itential Platform versions omit `applications[].description`
+        and/or report `cpuUsage` as a bare int placeholder instead of a
+        `{user, system}` object. This end-to-end test replicates that
+        anomalous shape and confirms get_health still returns a valid
+        HealthResponse instead of raising a ToolError.
+        """
+        mock_data = self.create_mock_health_data()
+
+        # Application missing description entirely
+        del mock_data["applications_data"]["results"][0]["description"]
+
+        # Server and adapter cpuUsage reported as bare int placeholders
+        mock_data["server_data"]["cpuUsage"] = 0
+        mock_data["adapters_data"]["results"][0]["cpuUsage"] = 0
+
+        # Configure service method returns
+        self.mock_health_service.get_status_health.return_value = mock_data[
+            "status_data"
+        ]
+        self.mock_health_service.get_system_health.return_value = mock_data[
+            "system_data"
+        ]
+        self.mock_health_service.get_server_health.return_value = mock_data[
+            "server_data"
+        ]
+        self.mock_health_service.get_applications_health.return_value = mock_data[
+            "applications_data"
+        ]
+        self.mock_health_service.get_adapters_health.return_value = mock_data[
+            "adapters_data"
+        ]
+
+        # Call the function - must not raise a ToolError/ValidationError
+        result = await get_health(self.mock_context)
+
+        # Verify result is a valid HealthResponse despite anomalous shapes
+        assert isinstance(result, HealthResponse)
+        assert result.applications[0].description is None
+        assert result.adapters[0].cpu_usage is None
+        assert result.server.cpu_usage is None
