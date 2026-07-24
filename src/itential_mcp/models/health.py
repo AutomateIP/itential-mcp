@@ -430,6 +430,31 @@ class CpuUsage(BaseModel):
     ]
 
 
+def _coerce_scalar_cpu_usage_to_none(value):
+    """Coerce a scalar cpuUsage placeholder value to None.
+
+    Some Itential Platform versions report cpuUsage as a bare scalar
+    placeholder (e.g. ``0``, ``0.0``, or ``"0"``) instead of a
+    ``{user, system}`` object when per-process CPU sampling isn't
+    populated. This normalizes any such scalar placeholder to None
+    rather than fabricating a breakdown that was never sampled.
+
+    Args:
+        value: The value to validate, expected to be either None, a
+            dict, a CpuUsage instance, or a scalar placeholder (int,
+            float, str, bool, etc).
+
+    Returns:
+        The original value unchanged if it is None, a dict, or a
+        CpuUsage instance. A list is also passed through unchanged so
+        that shape still raises a clear validation error. Any other
+        scalar value is coerced to None.
+    """
+    if value is None or isinstance(value, (dict, CpuUsage, list)):
+        return value
+    return None
+
+
 class ServerVersions(BaseModel):
     """
     Represents version information for Node.js and its dependencies.
@@ -550,7 +575,7 @@ class ServerInfo(BaseModel):
     ]
 
     cpu_usage: Annotated[
-        CpuUsage,
+        CpuUsage | None,
         Field(
             alias="cpuUsage",
             description=inspect.cleandoc(
@@ -558,6 +583,7 @@ class ServerInfo(BaseModel):
                 CPU usage statistics for the main server process
                 """
             ),
+            default=None,
         ),
     ]
 
@@ -594,6 +620,25 @@ class ServerInfo(BaseModel):
             default_factory=dict,
         ),
     ]
+
+    @field_validator("cpu_usage", mode="before")
+    @classmethod
+    def convert_scalar_cpu_usage_to_none(cls, value):
+        """Convert a scalar cpuUsage placeholder value to None.
+
+        Delegates to the shared `_coerce_scalar_cpu_usage_to_none` helper,
+        which coerces any non-mapping scalar placeholder to None rather
+        than fabricating a breakdown that was never sampled.
+
+        Args:
+            value: The value to validate, expected to be either a dict,
+                a CpuUsage instance, or a scalar placeholder.
+
+        Returns:
+            None if value is a scalar placeholder, otherwise returns the
+            original value unchanged.
+        """
+        return _coerce_scalar_cpu_usage_to_none(value)
 
 
 class ConnectionInfo(BaseModel):
@@ -737,13 +782,14 @@ class ApplicationInfo(BaseModel):
     ]
 
     description: Annotated[
-        str,
+        str | None,
         Field(
             description=inspect.cleandoc(
                 """
                 Human-readable description of the application
                 """
-            )
+            ),
+            default=None,
         ),
     ]
 
@@ -1001,6 +1047,25 @@ class AdapterInfo(BaseModel):
             default=None,
         ),
     ]
+
+    @field_validator("cpu_usage", mode="before")
+    @classmethod
+    def convert_scalar_cpu_usage_to_none(cls, value):
+        """Convert a scalar cpuUsage placeholder value to None.
+
+        Delegates to the shared `_coerce_scalar_cpu_usage_to_none` helper,
+        which coerces any non-mapping scalar placeholder to None rather
+        than fabricating a breakdown that was never sampled.
+
+        Args:
+            value: The value to validate, expected to be either a dict,
+                a CpuUsage instance, or a scalar placeholder.
+
+        Returns:
+            None if value is a scalar placeholder, otherwise returns the
+            original value unchanged.
+        """
+        return _coerce_scalar_cpu_usage_to_none(value)
 
     pid: Annotated[
         int | str | None,

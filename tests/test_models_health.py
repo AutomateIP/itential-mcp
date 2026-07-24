@@ -3,6 +3,9 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 
+import pytest
+from pydantic import ValidationError
+
 from itential_mcp.models.health import (
     ServiceStatus,
     PlatformStatus,
@@ -18,6 +21,7 @@ from itential_mcp.models.health import (
     ApplicationInfo,
     AdapterInfo,
     HealthResponse,
+    _coerce_scalar_cpu_usage_to_none,
 )
 
 
@@ -1772,3 +1776,434 @@ class TestLoggerConfigOptionalFields:
         logger = LoggerConfig(console="info", file="info", syslog={})
 
         assert logger.syslog == ""
+
+
+class TestHealthResponsePlatformVersionDrift:
+    """Regression tests for platform-version-driven response shape drift.
+
+    Different Itential Platform versions return different `cpuUsage` and
+    `description` shapes in their health payload. Older/differently
+    configured platforms may omit `applications[].description` entirely,
+    or return a scalar placeholder (e.g. ``0``, ``0.0``, or ``"0"``) for
+    `cpuUsage` instead of a `{user, system}` object when per-process CPU
+    sampling isn't populated. These models must tolerate both shapes.
+    """
+
+    def test_application_info_missing_description(self):
+        """ApplicationInfo must construct without a description field."""
+        payload = {
+            "id": "TestApp",
+            "package_id": "@itential/test-app",
+            "version": "1.0.0",
+            "type": "Application",
+            "routePrefix": "test-app",
+            "state": "RUNNING",
+            "uptime": 1000.0,
+            "memoryUsage": {"rss": 100000000},
+            "cpuUsage": {"user": 1000000, "system": 500000},
+            "pid": 123,
+            "logger": {},
+            "timestamp": 1757004595716,
+            "prevUptime": 999.0,
+        }
+
+        app_info = ApplicationInfo(**payload)
+
+        assert app_info.description is None
+
+    def test_adapter_info_scalar_cpu_usage(self):
+        """AdapterInfo must coerce a bare int cpuUsage placeholder to None."""
+        payload = {
+            "id": "TestAdapter",
+            "type": "Adapter",
+            "version": "1.0.0",
+            "state": "RUNNING",
+            "uptime": 2000.0,
+            "cpuUsage": 0,
+        }
+
+        adapter_info = AdapterInfo(**payload)
+
+        assert adapter_info.cpu_usage is None
+
+    def test_server_info_scalar_cpu_usage(self):
+        """ServerInfo must coerce a bare int cpuUsage placeholder to None."""
+        versions = ServerVersions(
+            node="20.3.0",
+            acorn="8.8.2",
+            ada="2.5.0",
+            ares="1.19.1",
+            brotli="1.0.9",
+            cjs_module_lexer="1.2.2",
+            cldr="43.0",
+            icu="73.1",
+            llhttp="8.1.0",
+            modules="115",
+            napi="9",
+            nghttp2="1.53.0",
+            openssl="3.0.8+quic",
+            simdutf="3.2.12",
+            tz="2023c",
+            undici="5.22.1",
+            unicode="15.0",
+            uv="1.45.0",
+            uvwasi="0.0.18",
+            v8="11.3.244.8-node.9",
+            zlib="1.2.13.1-motley",
+        )
+
+        server_info = ServerInfo(
+            version="15.8.10-2023.2.44",
+            release="2023.2.9",
+            arch="x64",
+            platform="linux",
+            versions=versions,
+            memoryUsage={"rss": 469671936},
+            cpuUsage=0,
+            uptime=2083622.963931177,
+            pid=1,
+        )
+
+        assert server_info.cpu_usage is None
+
+    def test_server_info_dict_cpu_usage_still_works(self):
+        """Regression — a normal dict-shaped cpuUsage payload still constructs a CpuUsage."""
+        versions = ServerVersions(
+            node="20.3.0",
+            acorn="8.8.2",
+            ada="2.5.0",
+            ares="1.19.1",
+            brotli="1.0.9",
+            cjs_module_lexer="1.2.2",
+            cldr="43.0",
+            icu="73.1",
+            llhttp="8.1.0",
+            modules="115",
+            napi="9",
+            nghttp2="1.53.0",
+            openssl="3.0.8+quic",
+            simdutf="3.2.12",
+            tz="2023c",
+            undici="5.22.1",
+            unicode="15.0",
+            uv="1.45.0",
+            uvwasi="0.0.18",
+            v8="11.3.244.8-node.9",
+            zlib="1.2.13.1-motley",
+        )
+
+        server_info = ServerInfo(
+            version="15.8.10-2023.2.44",
+            release="2023.2.9",
+            arch="x64",
+            platform="linux",
+            versions=versions,
+            memoryUsage={"rss": 469671936},
+            cpuUsage={"user": 3815108692, "system": 621631048},
+            uptime=2083622.963931177,
+            pid=1,
+        )
+
+        assert isinstance(server_info.cpu_usage, CpuUsage)
+        assert server_info.cpu_usage.user == 3815108692
+        assert server_info.cpu_usage.system == 621631048
+
+    def test_adapter_info_dict_cpu_usage_still_works(self):
+        """Regression — a normal dict-shaped cpuUsage payload still constructs a CpuUsage."""
+        adapter_info = AdapterInfo(
+            id="TestAdapter",
+            type="Adapter",
+            version="1.0.0",
+            state="RUNNING",
+            uptime=2000.0,
+            cpuUsage={"user": 2000000, "system": 1000000},
+        )
+
+        assert isinstance(adapter_info.cpu_usage, CpuUsage)
+        assert adapter_info.cpu_usage.user == 2000000
+        assert adapter_info.cpu_usage.system == 1000000
+
+    def test_adapter_info_float_cpu_usage(self):
+        """AdapterInfo must coerce a float cpuUsage placeholder to None."""
+        adapter_info = AdapterInfo(
+            id="TestAdapter",
+            type="Adapter",
+            version="1.0.0",
+            state="RUNNING",
+            uptime=2000.0,
+            cpuUsage=0.0,
+        )
+
+        assert adapter_info.cpu_usage is None
+
+    def test_adapter_info_str_cpu_usage(self):
+        """AdapterInfo must coerce a str cpuUsage placeholder to None."""
+        adapter_info = AdapterInfo(
+            id="TestAdapter",
+            type="Adapter",
+            version="1.0.0",
+            state="RUNNING",
+            uptime=2000.0,
+            cpuUsage="0",
+        )
+
+        assert adapter_info.cpu_usage is None
+
+    def test_adapter_info_list_cpu_usage_raises(self):
+        """AdapterInfo must NOT silently swallow a list cpuUsage — it's an
+        unexpected shape that should still raise a clear validation error.
+        """
+        with pytest.raises(ValidationError):
+            AdapterInfo(
+                id="TestAdapter",
+                type="Adapter",
+                version="1.0.0",
+                state="RUNNING",
+                uptime=2000.0,
+                cpuUsage=[1, 2, 3],
+            )
+
+    def test_server_info_float_cpu_usage(self):
+        """ServerInfo must coerce a float cpuUsage placeholder to None."""
+        versions = ServerVersions(
+            node="20.3.0",
+            acorn="8.8.2",
+            ada="2.5.0",
+            ares="1.19.1",
+            brotli="1.0.9",
+            cjs_module_lexer="1.2.2",
+            cldr="43.0",
+            icu="73.1",
+            llhttp="8.1.0",
+            modules="115",
+            napi="9",
+            nghttp2="1.53.0",
+            openssl="3.0.8+quic",
+            simdutf="3.2.12",
+            tz="2023c",
+            undici="5.22.1",
+            unicode="15.0",
+            uv="1.45.0",
+            uvwasi="0.0.18",
+            v8="11.3.244.8-node.9",
+            zlib="1.2.13.1-motley",
+        )
+
+        server_info = ServerInfo(
+            version="15.8.10-2023.2.44",
+            release="2023.2.9",
+            arch="x64",
+            platform="linux",
+            versions=versions,
+            memoryUsage={"rss": 469671936},
+            cpuUsage=0.0,
+            uptime=2083622.963931177,
+            pid=1,
+        )
+
+        assert server_info.cpu_usage is None
+
+    def test_server_info_str_cpu_usage(self):
+        """ServerInfo must coerce a str cpuUsage placeholder to None."""
+        versions = ServerVersions(
+            node="20.3.0",
+            acorn="8.8.2",
+            ada="2.5.0",
+            ares="1.19.1",
+            brotli="1.0.9",
+            cjs_module_lexer="1.2.2",
+            cldr="43.0",
+            icu="73.1",
+            llhttp="8.1.0",
+            modules="115",
+            napi="9",
+            nghttp2="1.53.0",
+            openssl="3.0.8+quic",
+            simdutf="3.2.12",
+            tz="2023c",
+            undici="5.22.1",
+            unicode="15.0",
+            uv="1.45.0",
+            uvwasi="0.0.18",
+            v8="11.3.244.8-node.9",
+            zlib="1.2.13.1-motley",
+        )
+
+        server_info = ServerInfo(
+            version="15.8.10-2023.2.44",
+            release="2023.2.9",
+            arch="x64",
+            platform="linux",
+            versions=versions,
+            memoryUsage={"rss": 469671936},
+            cpuUsage="0",
+            uptime=2083622.963931177,
+            pid=1,
+        )
+
+        assert server_info.cpu_usage is None
+
+    def test_server_info_list_cpu_usage_raises(self):
+        """ServerInfo must NOT silently swallow a list cpuUsage — it's an
+        unexpected shape that should still raise a clear validation error.
+        """
+        versions = ServerVersions(
+            node="20.3.0",
+            acorn="8.8.2",
+            ada="2.5.0",
+            ares="1.19.1",
+            brotli="1.0.9",
+            cjs_module_lexer="1.2.2",
+            cldr="43.0",
+            icu="73.1",
+            llhttp="8.1.0",
+            modules="115",
+            napi="9",
+            nghttp2="1.53.0",
+            openssl="3.0.8+quic",
+            simdutf="3.2.12",
+            tz="2023c",
+            undici="5.22.1",
+            unicode="15.0",
+            uv="1.45.0",
+            uvwasi="0.0.18",
+            v8="11.3.244.8-node.9",
+            zlib="1.2.13.1-motley",
+        )
+
+        with pytest.raises(ValidationError):
+            ServerInfo(
+                version="15.8.10-2023.2.44",
+                release="2023.2.9",
+                arch="x64",
+                platform="linux",
+                versions=versions,
+                memoryUsage={"rss": 469671936},
+                cpuUsage=[1, 2, 3],
+                uptime=2083622.963931177,
+                pid=1,
+            )
+
+    def test_coerce_scalar_cpu_usage_to_none_helper_directly(self):
+        """The shared helper coerces bare int/float/str/bool scalars to
+        None, passes through None/dict/CpuUsage/list unchanged, and its
+        behavior via ServerInfo/AdapterInfo matches direct calls.
+        """
+        assert _coerce_scalar_cpu_usage_to_none(0) is None
+        assert _coerce_scalar_cpu_usage_to_none(0.0) is None
+        assert _coerce_scalar_cpu_usage_to_none("0") is None
+        assert _coerce_scalar_cpu_usage_to_none(True) is None
+        assert _coerce_scalar_cpu_usage_to_none(False) is None
+        assert _coerce_scalar_cpu_usage_to_none(None) is None
+
+        cpu_usage = CpuUsage(user=1, system=2)
+        assert _coerce_scalar_cpu_usage_to_none(cpu_usage) is cpu_usage
+
+        payload = {"user": 1, "system": 2}
+        assert _coerce_scalar_cpu_usage_to_none(payload) is payload
+
+        values = [1, 2, 3]
+        assert _coerce_scalar_cpu_usage_to_none(values) is values
+
+    def test_health_response_live_failure_regression(self):
+        """Regression test replicating the exact live platform failure.
+
+        An application entry missing `description` AND an adapter with an
+        integer `cpuUsage` occurring simultaneously in the same payload —
+        this is the shape that raised a Pydantic ValidationError against
+        the live platform before this fix.
+        """
+        api_data = {
+            "status": {
+                "host": "platform.devel",
+                "serverId": "c0ecb6ba62d43b067c09a1c33488a7d41df592f6",
+                "services": [{"service": "redis", "status": "running"}],
+                "timestamp": 1757090849045,
+                "apps": "degraded",
+                "adapters": "running",
+            },
+            "system": {
+                "arch": "x64",
+                "release": "6.13.12-100.fc40.x86_64",
+                "uptime": 4755065.68,
+                "freemem": 53909569536,
+                "totalmem": 67111694336,
+                "loadavg": [0.0, 0.05, 0.15],
+                "cpus": [],
+            },
+            "server": {
+                "version": "15.8.10-2023.2.44",
+                "release": "2023.2.9",
+                "arch": "x64",
+                "platform": "linux",
+                "versions": {
+                    "node": "20.3.0",
+                    "acorn": "8.8.2",
+                    "ada": "2.5.0",
+                    "ares": "1.19.1",
+                    "brotli": "1.0.9",
+                    "cjs_module_lexer": "1.2.2",
+                    "cldr": "43.0",
+                    "icu": "73.1",
+                    "llhttp": "8.1.0",
+                    "modules": "115",
+                    "napi": "9",
+                    "nghttp2": "1.53.0",
+                    "openssl": "3.0.8+quic",
+                    "simdutf": "3.2.12",
+                    "tz": "2023c",
+                    "undici": "5.22.1",
+                    "unicode": "15.0",
+                    "uv": "1.45.0",
+                    "uvwasi": "0.0.18",
+                    "v8": "11.3.244.8-node.9",
+                    "zlib": "1.2.13.1-motley",
+                },
+                "memoryUsage": {"rss": 490758144},
+                "cpuUsage": 0,
+                "uptime": 2169876.158544452,
+                "pid": 1,
+            },
+            "applications": [
+                {
+                    "id": "AGManager",
+                    "package_id": "@itential/app-ag_manager",
+                    "version": "1.20.3-2023.2.1",
+                    "type": "Application",
+                    "routePrefix": "ag-manager",
+                    "state": "RUNNING",
+                    "uptime": 846338.466451258,
+                    "memoryUsage": {"rss": 181534720},
+                    "cpuUsage": {"user": 289119808, "system": 125456921},
+                    "pid": 715,
+                    "logger": {},
+                    "timestamp": 1757090846633,
+                    "prevUptime": 846333.466399005,
+                }
+            ],
+            "adapters": [
+                {
+                    "id": "Gateway",
+                    "package_id": "@itential/adapter-automation_gateway",
+                    "version": "4.31.4-2023.2.1",
+                    "type": "Adapter",
+                    "description": "Itential Ansible Manager Adapter",
+                    "routePrefix": "automationgateway",
+                    "state": "RUNNING",
+                    "connection": {"state": "ONLINE"},
+                    "uptime": 846361.043660279,
+                    "memoryUsage": {"rss": 157736960},
+                    "cpuUsage": 0,
+                    "pid": 701,
+                    "logger": {},
+                    "timestamp": 1757090848784,
+                    "prevUptime": 846356.042837805,
+                }
+            ],
+        }
+
+        health_response = HealthResponse(**api_data)
+
+        assert health_response.applications[0].description is None
+        assert health_response.adapters[0].cpu_usage is None
+        assert health_response.server.cpu_usage is None
