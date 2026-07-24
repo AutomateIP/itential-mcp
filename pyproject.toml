@@ -3,7 +3,7 @@ name = "itential-mcp"
 description = "Itential MCP Server"
 
 dependencies = [
-    "fastmcp",
+    "fastmcp>=3.0.2,<4",
     "ipsdk>=0.7.0",
     "python-toon",
     "wsproto",
