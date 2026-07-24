@@ -33,7 +33,7 @@ async def get_devices(
     Raises:
         Exception: If there is an error retrieving devices from the platform
     """
-    await ctx.info("inside get_devices(...)")
+    await ctx.debug("inside get_devices(...)")
     client = ctx.request_context.lifespan_context.get("client")
     results = await client.configuration_manager.get_devices()
     return models.GetDevicesResponse(results)
@@ -59,7 +59,7 @@ async def get_device_configuration(
     Raises:
         ValueError: If there is an error retrieving the configuration or device is not found
     """
-    await ctx.info("inside get_device_configuration(...)")
+    await ctx.debug("inside get_device_configuration(...)")
     client = ctx.request_context.lifespan_context.get("client")
     return await client.configuration_manager.get_device_configuration(name)
 
@@ -96,7 +96,7 @@ async def backup_device_configuration(
     Raises:
         Exception: If there is an error creating the device configuration backup
     """
-    await ctx.info("inside backup_device_configuration(...)")
+    await ctx.debug("inside backup_device_configuration(...)")
     client = ctx.request_context.lifespan_context.get("client")
     res = await client.configuration_manager.backup_device_configuration(
         name=name, description=description, notes=notes
@@ -130,7 +130,7 @@ async def apply_device_configuration(
     Raises:
         Exception: If there is an error applying the configuration to the device
     """
-    await ctx.info("inside apply_device_configuration(...)")
+    await ctx.debug("inside apply_device_configuration(...)")
     client = ctx.request_context.lifespan_context.get("client")
     res = await client.configuration_manager.apply_device_configuration(
         device=device, config=config

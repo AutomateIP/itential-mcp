@@ -37,7 +37,7 @@ async def get_services(
     Raises:
         Exception: If there is an error retrieving services from Gateway Manager
     """
-    await ctx.info("inside get_services(...)")
+    await ctx.debug("inside get_services(...)")
 
     client = ctx.request_context.lifespan_context.get("client")
 
@@ -79,7 +79,7 @@ async def get_gateways(
     Raises:
         Exception: If there is an error retrieving gateways from Gateway Manager
     """
-    await ctx.info("inside get_gateways(...)")
+    await ctx.debug("inside get_gateways(...)")
 
     client = ctx.request_context.lifespan_context.get("client")
 
@@ -148,7 +148,7 @@ async def run_service(
     Raises:
         Exception: If there is an error running the service on Gateway Manager
     """
-    await ctx.info("inside run_service(...)")
+    await ctx.debug("inside run_service(...)")
 
     client = ctx.request_context.lifespan_context.get("client")
 

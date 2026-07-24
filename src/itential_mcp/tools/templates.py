@@ -51,7 +51,7 @@ async def get_templates(
         Exception: If there is an error retrieving templates from the
             Automation Studio service.
     """
-    await ctx.info("inside get_templates(...)")
+    await ctx.debug("inside get_templates(...)")
     client = ctx.request_context.lifespan_context.get("client")
     res = await client.automation_studio.get_templates(template_type=template_type)
 
@@ -103,7 +103,7 @@ async def describe_template(
         Exception: If there is an error retrieving the template information
             from the Automation Studio API.
     """
-    await ctx.info("inside get_templates(...)")
+    await ctx.debug("inside get_templates(...)")
     client = ctx.request_context.lifespan_context.get("client")
     res = await client.automation_studio.describe_template(name=name, project=project)
     return models.DescribeTemplateResponse(
@@ -188,7 +188,7 @@ async def create_template(
         Exception: If there is an error creating the template in the
             Automation Studio API.
     """
-    await ctx.info("inside create_template(...)")
+    await ctx.debug("inside create_template(...)")
     client = ctx.request_context.lifespan_context.get("client")
     res = await client.automation_studio.create_template(
         name=name,
@@ -277,7 +277,7 @@ async def update_template(
         Exception: If there is an error updating the template in the
             Automation Studio API.
     """
-    await ctx.info("inside update_template(...)")
+    await ctx.debug("inside update_template(...)")
     client = ctx.request_context.lifespan_context.get("client")
     res = await client.automation_studio.update_template(
         name=name, project=project, command=command, template=template, data=data

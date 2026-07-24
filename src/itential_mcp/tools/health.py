@@ -47,7 +47,7 @@ async def get_health(
         Exception: If there is an error retrieving health information from
             any platform component
     """
-    await ctx.info("inside get_health(...)")
+    await ctx.debug("inside get_health(...)")
 
     client = ctx.request_context.lifespan_context.get("client")
 

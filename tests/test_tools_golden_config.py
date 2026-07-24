@@ -64,7 +64,9 @@ class TestGoldenConfigTools:
 
         result = await get_golden_config_trees(mock_context)
 
-        mock_context.info.assert_called_once_with("inside get_golden_config_trees(...)")
+        mock_context.debug.assert_called_once_with(
+            "inside get_golden_config_trees(...)"
+        )
         mock_configuration_manager.get_golden_config_trees.assert_called_once()
 
         assert isinstance(result, GetGoldenConfigTreesResponse)
@@ -87,7 +89,9 @@ class TestGoldenConfigTools:
 
         result = await get_golden_config_trees(mock_context)
 
-        mock_context.info.assert_called_once_with("inside get_golden_config_trees(...)")
+        mock_context.debug.assert_called_once_with(
+            "inside get_golden_config_trees(...)"
+        )
         mock_configuration_manager.get_golden_config_trees.assert_called_once()
 
         assert isinstance(result, GetGoldenConfigTreesResponse)
@@ -136,7 +140,7 @@ class TestGoldenConfigTools:
             variables=None,
         )
 
-        mock_context.info.assert_called_once_with(
+        mock_context.debug.assert_called_once_with(
             "inside create_golden_config_tree(...)"
         )
         mock_configuration_manager.create_golden_config_tree.assert_called_once_with(
@@ -297,7 +301,7 @@ class TestGoldenConfigTools:
             template=None,
         )
 
-        mock_context.info.assert_called_once_with("inside add_golden_config_node(...)")
+        mock_context.debug.assert_called_once_with("inside add_golden_config_node(...)")
         mock_configuration_manager.add_golden_config_node.assert_called_once_with(
             name="interface-config",
             tree_name="test-tree",
@@ -563,8 +567,8 @@ class TestGoldenConfigTools:
         # Test get_golden_config_trees
         mock_configuration_manager.get_golden_config_trees.return_value = []
         await get_golden_config_trees(mock_context)
-        mock_context.info.assert_called_with("inside get_golden_config_trees(...)")
-        mock_context.info.reset_mock()
+        mock_context.debug.assert_called_with("inside get_golden_config_trees(...)")
+        mock_context.debug.reset_mock()
 
         # Test create_golden_config_tree
         mock_configuration_manager.create_golden_config_tree.return_value = {
@@ -572,15 +576,15 @@ class TestGoldenConfigTools:
             "deviceType": "cisco_ios",
         }
         await create_golden_config_tree(mock_context, "test", "cisco_ios", None, None)
-        mock_context.info.assert_called_with("inside create_golden_config_tree(...)")
-        mock_context.info.reset_mock()
+        mock_context.debug.assert_called_with("inside create_golden_config_tree(...)")
+        mock_context.debug.reset_mock()
 
         # Test add_golden_config_node
         mock_configuration_manager.add_golden_config_node.return_value = None
         await add_golden_config_node(
             mock_context, "tree", "node", "initial", "base", None
         )
-        mock_context.info.assert_called_with("inside add_golden_config_node(...)")
+        mock_context.debug.assert_called_with("inside add_golden_config_node(...)")
 
     @pytest.mark.asyncio
     async def test_client_context_retrieval(

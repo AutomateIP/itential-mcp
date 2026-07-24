@@ -23,7 +23,7 @@ class TestGetIntegrationModels:
     def mock_context(self):
         """Create a mock FastMCP Context for testing."""
         context = Mock(spec=Context)
-        context.info = AsyncMock()
+        context.debug = AsyncMock()
 
         # Mock the lifespan context
         mock_client = Mock()
@@ -61,7 +61,7 @@ class TestGetIntegrationModels:
         result = await integrations.get_integration_models(mock_context)
 
         # Verify context.info was called
-        mock_context.info.assert_called_once_with("inside get_integration_models(...)")
+        mock_context.debug.assert_called_once_with("inside get_integration_models(...)")
 
         # Verify client was retrieved and method called
         mock_context.request_context.lifespan_context.get.assert_called_once_with(
@@ -184,7 +184,7 @@ class TestCreateIntegrationModel:
     def mock_context(self):
         """Create a mock FastMCP Context for testing."""
         context = Mock(spec=Context)
-        context.info = AsyncMock()
+        context.debug = AsyncMock()
 
         # Mock the lifespan context
         mock_client = Mock()
@@ -240,7 +240,7 @@ class TestCreateIntegrationModel:
             )
 
             # Verify context.info was called
-            mock_context.info.assert_called_once_with(
+            mock_context.debug.assert_called_once_with(
                 "inside create_integration_model(...)"
             )
 
@@ -502,7 +502,7 @@ class TestIntegrationModelsErrorScenarios:
     def mock_context(self):
         """Create a mock FastMCP Context for error testing."""
         context = Mock(spec=Context)
-        context.info = AsyncMock()
+        context.debug = AsyncMock()
 
         # Mock the lifespan context
         mock_client = Mock()
@@ -643,7 +643,7 @@ class TestGetIntegrations:
     def mock_context(self):
         """Create a mock FastMCP Context for testing."""
         context = Mock(spec=Context)
-        context.info = AsyncMock()
+        context.debug = AsyncMock()
 
         # Mock the lifespan context
         mock_client = Mock()
@@ -687,7 +687,7 @@ class TestGetIntegrations:
         result = await integrations.get_integrations(mock_context, model=None)
 
         # Verify context.info was called
-        mock_context.info.assert_called_once_with("inside get_integrations(...)")
+        mock_context.debug.assert_called_once_with("inside get_integrations(...)")
 
         # Verify client was retrieved and method called
         mock_context.request_context.lifespan_context.get.assert_called_once_with(
@@ -749,7 +749,7 @@ class TestGetIntegrations:
         result = await integrations.get_integrations(mock_context, model="cisco-ios")
 
         # Verify context.info was called
-        mock_context.info.assert_called_once_with("inside get_integrations(...)")
+        mock_context.debug.assert_called_once_with("inside get_integrations(...)")
 
         # Verify client was retrieved and method called with model filter
         mock_context.request_context.lifespan_context.get.assert_called_once_with(

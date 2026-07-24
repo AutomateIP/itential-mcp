@@ -41,7 +41,7 @@ async def get_golden_config_trees(
     Raises:
         None: This function does not raise any exceptions
     """
-    await ctx.info("inside get_golden_config_trees(...)")
+    await ctx.debug("inside get_golden_config_trees(...)")
 
     client = ctx.request_context.lifespan_context.get("client")
 
@@ -105,7 +105,7 @@ async def create_golden_config_tree(
     Raises:
         ServerException: If there is an error creating the Golden Configuration tree
     """
-    await ctx.info("inside create_golden_config_tree(...)")
+    await ctx.debug("inside create_golden_config_tree(...)")
 
     client = ctx.request_context.lifespan_context.get("client")
 
@@ -169,7 +169,7 @@ async def add_golden_config_node(
     Raises:
         ServerException: If there is an error adding the node to the Golden Configuration tree
     """
-    await ctx.info("inside add_golden_config_node(...)")
+    await ctx.debug("inside add_golden_config_node(...)")
 
     client = ctx.request_context.lifespan_context.get("client")
 

@@ -27,7 +27,7 @@ async def get_adapters(
         GetAdaptersResponse: Response object that provides the list of
             configured adapters from the server
     """
-    await ctx.info("inside get_adapters(...)")
+    await ctx.debug("inside get_adapters(...)")
 
     client = ctx.request_context.lifespan_context.get("client")
 
@@ -81,7 +81,7 @@ async def start_adapter(
         - Adapter name is case-sensitive
         - Function polls adapter state every second until timeout
     """
-    await ctx.info("inside start_adapter(...)")
+    await ctx.debug("inside start_adapter(...)")
     client = ctx.request_context.lifespan_context.get("client")
     data = await client.adapters.start_adapter(name=name, timeout=timeout)
     return models.StartAdapterResponse(name=data["id"], state=data["state"])
@@ -119,7 +119,7 @@ async def stop_adapter(
         - Adapter name is case-sensitive
         - Function polls adapter state every second until timeout
     """
-    await ctx.info("inside stop_adapter(...)")
+    await ctx.debug("inside stop_adapter(...)")
     client = ctx.request_context.lifespan_context.get("client")
     data = await client.adapters.stop_adapter(name=name, timeout=timeout)
     return models.StopAdapterResponse(name=data["id"], state=data["state"])
@@ -158,7 +158,7 @@ async def restart_adapter(
         - For STOPPED adapters, use `start_adapter` instead
         - Function polls adapter state every second until timeout
     """
-    await ctx.info("inside restart_adapter(...)")
+    await ctx.debug("inside restart_adapter(...)")
     client = ctx.request_context.lifespan_context.get("client")
     data = await client.adapters.restart_adapter(name=name, timeout=timeout)
     return models.RestartAdapterResponse(name=data["id"], state=data["state"])

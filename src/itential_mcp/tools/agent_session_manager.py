@@ -54,7 +54,7 @@ async def get_sessions(
         - Use describe_session with a session_id to get the full event log and output
         - Timestamps are converted from epoch milliseconds to ISO 8601 format
     """
-    await ctx.info("inside get_sessions(...)")
+    await ctx.debug("inside get_sessions(...)")
 
     client = ctx.request_context.lifespan_context.get("client")
 
@@ -117,7 +117,7 @@ async def describe_session(
         - The output field is extracted from the inference-succeeded event message
         - Message timestamps are converted from epoch milliseconds to ISO 8601 format
     """
-    await ctx.info("inside describe_session(...)")
+    await ctx.debug("inside describe_session(...)")
 
     client = ctx.request_context.lifespan_context.get("client")
 

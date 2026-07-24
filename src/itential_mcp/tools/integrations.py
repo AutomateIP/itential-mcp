@@ -47,7 +47,7 @@ async def get_integrations(
     Raises:
         Exception: If there is an error retrieving integrations from the platform
     """
-    await ctx.info("inside get_integrations(...)")
+    await ctx.debug("inside get_integrations(...)")
 
     client = ctx.request_context.lifespan_context.get("client")
 
@@ -87,7 +87,7 @@ async def get_integration_models(
             - version: Model version from the OpenAPI spec info block
             - description: Optional model description
     """
-    await ctx.info("inside get_integration_models(...)")
+    await ctx.debug("inside get_integration_models(...)")
 
     client = ctx.request_context.lifespan_context.get("client")
 
@@ -135,7 +135,7 @@ async def create_integration_model(
         - Model identifier is derived from title:version in the OpenAPI spec info block
         - OpenAPI specification is validated before creation
     """
-    await ctx.info("inside create_integration_model(...)")
+    await ctx.debug("inside create_integration_model(...)")
 
     model_id = f"{model['info']['title']}:{model['info']['version']}"
 

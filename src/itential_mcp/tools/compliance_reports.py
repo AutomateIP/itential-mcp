@@ -37,7 +37,7 @@ async def describe_compliance_report(
     Raises:
         Exception: If there is an error retrieving the compliance report or the report ID is not found
     """
-    await ctx.info("inside describe_compliance_report(...)")
+    await ctx.debug("inside describe_compliance_report(...)")
     client = ctx.request_context.lifespan_context.get("client")
     res = await client.configuration_manager.describe_compliance_report(report_id)
     return models.DescribeComplianceReportResponse(result=res)

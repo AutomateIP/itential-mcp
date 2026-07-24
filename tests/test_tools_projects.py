@@ -15,7 +15,7 @@ class TestAutomationStudioProjects:
     def mock_context(self):
         """Create a mock FastMCP context."""
         mock_ctx = MagicMock()
-        mock_ctx.info = AsyncMock()
+        mock_ctx.debug = AsyncMock()
         mock_ctx.request_context.lifespan_context.get.return_value = MagicMock()
         return mock_ctx
 
@@ -127,7 +127,7 @@ class TestAutomationStudioProjects:
         assert result.root[1].id == "6824fa53eeefcae9174e2140"
 
         mock_client.automation_studio.get_projects.assert_called_once()
-        mock_context.info.assert_called_once_with("inside get_projects(...)")
+        mock_context.debug.assert_called_once_with("inside get_projects(...)")
 
     @pytest.mark.asyncio
     async def test_get_projects_empty_response(
@@ -168,7 +168,7 @@ class TestAutomationStudioProjects:
         mock_client.automation_studio.describe_project.assert_called_once_with(
             name="Application Infra Provisioning - Python + Infoblox + CMDB"
         )
-        mock_context.info.assert_called_once_with("inside describe_project(...)")
+        mock_context.debug.assert_called_once_with("inside describe_project(...)")
 
     @pytest.mark.asyncio
     async def test_describe_project_filters_data_correctly(

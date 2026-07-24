@@ -37,7 +37,7 @@ async def get_resources(
             - name: Resource model name
             - description: Resource model description
     """
-    await ctx.info("inside get_resources(...)")
+    await ctx.debug("inside get_resources(...)")
 
     client = ctx.request_context.lifespan_context.get("client")
 
@@ -94,7 +94,7 @@ async def create_resource(
         - Metadata fields like $schema, title should be passed as separate parameters
         - Resource models enable structured lifecycle management of network services
     """
-    await ctx.info("inside create_resource(...)")
+    await ctx.debug("inside create_resource(...)")
 
     client = ctx.request_context.lifespan_context.get("client")
 
@@ -136,7 +136,7 @@ async def describe_resource(
             - type: The type of action (CREATE, UPDATE, DELETE)
             - input_schema: The input schema required to execute the action
     """
-    await ctx.info("inside describe_resource(...)")
+    await ctx.debug("inside describe_resource(...)")
 
     client = ctx.request_context.lifespan_context.get("client")
 
@@ -214,7 +214,7 @@ async def get_instances(
             - instance_data: Data object associated with this instance
             - last_action: Last lifecycle action performed on the instance
     """
-    await ctx.info("inside get_instances(...)")
+    await ctx.debug("inside get_instances(...)")
 
     client = ctx.request_context.lifespan_context.get("client")
 
@@ -271,7 +271,7 @@ async def describe_instance(
     Raises:
         NotFoundError: If the named instance cannot be found on the server
     """
-    await ctx.info("inside describe_instance(...)")
+    await ctx.debug("inside describe_instance(...)")
 
     client = ctx.request_context.lifespan_context.get("client")
 
@@ -338,7 +338,7 @@ async def run_action(
         NotFoundError: If a resource, instance or action could not be found on
             the server
     """
-    await ctx.info("inside run_action(...)")
+    await ctx.debug("inside run_action(...)")
 
     client = ctx.request_context.lifespan_context.get("client")
 
@@ -417,7 +417,7 @@ async def get_action_executions(
         # Get executions for both resource and instance
         get_action_executions(ctx, resource_name="MyResource", instance_name="prod")
     """
-    await ctx.info("inside get_action_executions(...)")
+    await ctx.debug("inside get_action_executions(...)")
 
     client = ctx.request_context.lifespan_context.get("client")
 

@@ -60,7 +60,7 @@ class TestGetDeviceGroups:
     def mock_context(self):
         """Create a mock Context object"""
         context = AsyncMock(spec=Context)
-        context.info = AsyncMock()
+        context.debug = AsyncMock()
 
         # Mock client
         mock_client = MagicMock()
@@ -135,14 +135,14 @@ class TestGetDeviceGroups:
 
     @pytest.mark.asyncio
     async def test_get_device_groups_logs_info(self, mock_context):
-        """Test get_device_groups logs info message"""
+        """Test get_device_groups logs debug message"""
         mock_client = mock_context.request_context.lifespan_context.get.return_value
         mock_client.configuration_manager = MagicMock()
         mock_client.configuration_manager.get_device_groups = AsyncMock(return_value=[])
 
         await device_groups.get_device_groups(mock_context)
 
-        mock_context.info.assert_called_once_with("inside get_device_groups(...)")
+        mock_context.debug.assert_called_once_with("inside get_device_groups(...)")
 
     @pytest.mark.asyncio
     async def test_get_device_groups_handles_missing_fields(self, mock_context):
@@ -176,7 +176,7 @@ class TestCreateDeviceGroup:
     def mock_context(self):
         """Create a mock Context object"""
         context = AsyncMock(spec=Context)
-        context.info = AsyncMock()
+        context.debug = AsyncMock()
 
         # Mock client
         mock_client = MagicMock()
@@ -316,7 +316,7 @@ class TestCreateDeviceGroup:
 
     @pytest.mark.asyncio
     async def test_create_device_group_logs_info(self, mock_context):
-        """Test create_device_group logs info message"""
+        """Test create_device_group logs debug message"""
         mock_response_data = {
             "id": "test",
             "name": "test",
@@ -334,7 +334,7 @@ class TestCreateDeviceGroup:
             mock_context, name="Test", description=None, devices=[]
         )
 
-        mock_context.info.assert_called_once_with("inside create_device_group(...)")
+        mock_context.debug.assert_called_once_with("inside create_device_group(...)")
 
 
 class TestAddDevicesToGroup:
@@ -344,7 +344,7 @@ class TestAddDevicesToGroup:
     def mock_context(self):
         """Create a mock Context object"""
         context = AsyncMock(spec=Context)
-        context.info = AsyncMock()
+        context.debug = AsyncMock()
 
         # Mock client
         mock_client = MagicMock()
@@ -427,7 +427,7 @@ class TestAddDevicesToGroup:
 
     @pytest.mark.asyncio
     async def test_add_devices_to_group_logs_info(self, mock_context):
-        """Test add_devices_to_group logs info message"""
+        """Test add_devices_to_group logs debug message"""
         mock_client = mock_context.request_context.lifespan_context.get.return_value
         mock_client.configuration_manager = MagicMock()
         mock_client.configuration_manager.add_devices_to_group = AsyncMock(
@@ -436,7 +436,7 @@ class TestAddDevicesToGroup:
 
         await device_groups.add_devices_to_group(mock_context, name="Test", devices=[])
 
-        mock_context.info.assert_called_once_with("inside add_devices_to_group(...)")
+        mock_context.debug.assert_called_once_with("inside add_devices_to_group(...)")
 
 
 class TestRemoveDevicesFromGroup:
@@ -446,7 +446,7 @@ class TestRemoveDevicesFromGroup:
     def mock_context(self):
         """Create a mock Context object"""
         context = AsyncMock(spec=Context)
-        context.info = AsyncMock()
+        context.debug = AsyncMock()
 
         # Mock client with configuration_manager
         mock_client = MagicMock()
@@ -596,7 +596,7 @@ class TestRemoveDevicesFromGroup:
 
     @pytest.mark.asyncio
     async def test_remove_devices_from_group_logs_info(self, mock_context):
-        """Test remove_devices_from_group logs info message"""
+        """Test remove_devices_from_group logs debug message"""
         mock_client = mock_context.request_context.lifespan_context.get.return_value
         mock_client.configuration_manager = MagicMock()
         mock_client.configuration_manager.remove_devices_from_group = AsyncMock(
@@ -607,7 +607,7 @@ class TestRemoveDevicesFromGroup:
             mock_context, name="Test", devices=[]
         )
 
-        mock_context.info.assert_called_once_with(
+        mock_context.debug.assert_called_once_with(
             "inside remove_devices_from_group(...)"
         )
 
@@ -619,7 +619,7 @@ class TestToolsIntegration:
     def mock_context(self):
         """Create a mock Context object"""
         context = AsyncMock(spec=Context)
-        context.info = AsyncMock()
+        context.debug = AsyncMock()
 
         # Mock client
         mock_client = MagicMock()
