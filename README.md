@@ -5,6 +5,7 @@
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)](https://github.com/itential/itential-mcp)
 [![Coverage](https://img.shields.io/badge/coverage-99%25-brightgreen)](https://github.com/itential/itential-mcp)
+[![MCP Protocol](https://img.shields.io/badge/MCP_Protocol-2025--11--25-blue)](https://modelcontextprotocol.io/specification/2025-11-25)
 
 </div>
 
