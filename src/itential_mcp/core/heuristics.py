@@ -98,10 +98,16 @@ class Scanner:
         Raises:
             None
         """
-        # API Keys and tokens (various formats)
+        # API Keys and tokens (various formats). The optional `["']?` before
+        # the key name and between the key name and the `[=:]` separator
+        # allows these patterns to also match JSON-formatted content where
+        # the key is quoted with either double or single quotes, e.g.
+        # `"api_key": "AKIA1234567890ABCDEF12"` or
+        # `'api_key': 'AKIA1234567890ABCDEF12'`, in addition to the plain
+        # `key=value` / `key: value` forms.
         self.add_pattern(
             "api_key",
-            r"(?i)\b(?:api[_-]?key|apikey)\s*[=:]\s*[\"']?([a-zA-Z0-9_\-]{16,})[\"']?",
+            r"(?i)[\"']?\b(?:api[_-]?key|apikey)[\"']?\s*[=:]\s*[\"']?([a-zA-Z0-9_\-]{16,})[\"']?",
         )
         self.add_pattern("bearer_token", r"(?i)\bbearer\s+([a-zA-Z0-9_\-\.]{20,})")
         self.add_pattern(
@@ -110,17 +116,17 @@ class Scanner:
         )
         self.add_pattern(
             "access_token",
-            r"(?i)\b(?:access[_-]?token|accesstoken)\s*[=:]\s*[\"']?([a-zA-Z0-9_\-]{20,})[\"']?",
+            r"(?i)[\"']?\b(?:access[_-]?token|accesstoken)[\"']?\s*[=:]\s*[\"']?([a-zA-Z0-9_\-]{20,})[\"']?",
         )
 
         # Password patterns
         self.add_pattern(
             "password",
-            r"(?i)\b(?:password|passwd|pwd)\s*[=:]\s*[\"']?([^\s\"']{6,})[\"']?",
+            r"(?i)[\"']?\b(?:password|passwd|pwd)[\"']?\s*[=:]\s*[\"']?([^\s\"']{6,})[\"']?",
         )
         self.add_pattern(
             "secret",
-            r"(?i)\b(?:secret|client_secret)\s*[=:]\s*[\"']?([a-zA-Z0-9_\-]{16,})[\"']?",
+            r"(?i)[\"']?\b(?:secret|client_secret)[\"']?\s*[=:]\s*[\"']?([a-zA-Z0-9_\-]{16,})[\"']?",
         )
 
         # URLs with authentication (check before email patterns)

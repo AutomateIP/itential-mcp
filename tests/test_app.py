@@ -268,6 +268,42 @@ class TestRun:
         assert result == 1
         mock_print_exc.assert_called_once()
 
+    @patch("sys.stderr", new_callable=StringIO)
+    @patch("os.environ", {})
+    @patch("itential_mcp.app.parse_args")
+    @patch("sys.argv", ["itential-mcp", "run"])
+    def test_run_exception_handling_prints_clean_error_without_debug(
+        self, mock_parse_args, mock_stderr
+    ):
+        """Test that a clean error line is written to stderr by default,
+        without ITENTIAL_MCP_DEBUG set, and the exit code is 1."""
+        mock_parse_args.side_effect = Exception("Test exception")
+
+        result = app.run()
+
+        assert result == 1
+        output = mock_stderr.getvalue()
+        assert "ERROR: Test exception" in output
+
+    @patch("traceback.print_exc")
+    @patch("sys.stderr", new_callable=StringIO)
+    @patch("os.environ", {"ITENTIAL_MCP_DEBUG": "true"})
+    @patch("itential_mcp.app.parse_args")
+    @patch("sys.argv", ["itential-mcp", "run"])
+    def test_run_exception_handling_prints_clean_error_and_traceback_in_debug_mode(
+        self, mock_parse_args, mock_stderr, mock_print_exc
+    ):
+        """Test that in debug mode both the clean stderr error line AND the
+        full traceback are emitted together, not just one or the other."""
+        mock_parse_args.side_effect = Exception("Test exception")
+
+        result = app.run()
+
+        assert result == 1
+        output = mock_stderr.getvalue()
+        assert "ERROR: Test exception" in output
+        mock_print_exc.assert_called_once()
+
     @patch("itential_mcp.core.logging.info")
     @patch("asyncio.run")
     @patch("itential_mcp.app.parse_args")

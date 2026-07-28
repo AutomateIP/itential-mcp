@@ -9,6 +9,8 @@ from io import StringIO
 from dataclasses import dataclass
 from typing import Any
 
+from fastmcp.exceptions import ToolError
+
 from itential_mcp.runtime import runner
 
 
@@ -529,6 +531,55 @@ class TestRun:
         assert '"name": "item1"' in output
         # Should have proper indentation (4 spaces)
         assert '    "result": "success"' in output
+
+    @pytest.mark.asyncio
+    @patch("itential_mcp.runtime.runner.Client")
+    @patch("itential_mcp.runtime.runner.Server")
+    @patch("itential_mcp.runtime.runner.config.get")
+    async def test_run_tool_error_not_swallowed(
+        self, mock_config_get, mock_server_class, mock_client_class
+    ):
+        """Test that a ToolError raised by call_tool propagates out of
+        runner.run instead of being silently swallowed. This mirrors the
+        real failure path where the platform returns an error status and
+        fastmcp surfaces it as a ToolError."""
+        # Setup mocks
+        mock_config = MagicMock()
+        mock_config_get.return_value = mock_config
+
+        # Setup server instance mock
+        mock_server_instance = MagicMock()
+        mock_server_instance.mcp = MagicMock()
+        mock_server_instance.__aenter__ = AsyncMock(return_value=mock_server_instance)
+        mock_server_instance.__aexit__ = AsyncMock(return_value=None)
+        mock_server_class.return_value = mock_server_instance
+
+        mock_client = AsyncMock()
+        mock_client.ping.return_value = True
+
+        # Mock tool list response
+        mock_tool = MagicMock()
+        mock_tool.name = "test_tool"
+        mock_tool.inputSchema = {"properties": {}, "required": []}
+
+        mock_list_response = MagicMock()
+        mock_list_response.tools = [mock_tool]
+        mock_client.list_tools_mcp.return_value = mock_list_response
+
+        # Simulate call_tool raising a ToolError (e.g. platform returned 400)
+        mock_client.call_tool = AsyncMock(
+            side_effect=ToolError("platform returned an error")
+        )
+
+        mock_client_class.return_value.__aenter__.return_value = mock_client
+        mock_client_class.return_value.__aexit__.return_value = None
+
+        # Execute and verify the ToolError is not swallowed -- it should
+        # propagate out of runner.run unchanged.
+        with pytest.raises(ToolError, match="platform returned an error"):
+            await runner.run("test_tool")
+
+        mock_client.call_tool.assert_called_once_with("test_tool", arguments=None)
 
 
 class TestRunEdgeCases:
