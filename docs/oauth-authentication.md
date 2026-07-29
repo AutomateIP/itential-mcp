@@ -43,6 +43,8 @@ For OAuth proxy mode (`oauth_proxy`):
 | `ITENTIAL_MCP_SERVER_AUTH_OAUTH_TOKEN_URL` | `--auth-oauth-token-url` | **Required** - Upstream token endpoint |
 | `ITENTIAL_MCP_SERVER_AUTH_OAUTH_USERINFO_URL` | `--auth-oauth-userinfo-url` | Optional - Upstream user info endpoint |
 | `ITENTIAL_MCP_SERVER_AUTH_OAUTH_PROVIDER_TYPE` | `--auth-oauth-provider-type` | Provider type: `google`, `azure`, `auth0`, `github`, `okta`, `generic` |
+| `ITENTIAL_MCP_SERVER_AUTH_JWKS_URI` | `--auth-jwks-uri` | **Required** (one of `jwks_uri` or `public_key`) - JWKS endpoint for verifying upstream tokens |
+| `ITENTIAL_MCP_SERVER_AUTH_PUBLIC_KEY` | `--auth-public-key` | **Required** (one of `jwks_uri` or `public_key`) - Static public key/secret for verifying upstream tokens |
 
 ## OAuth Provider Mode
 
@@ -84,6 +86,10 @@ The OAuth provider automatically derives the base URL from the redirect URI by r
 
 The OAuth proxy mode delegates authentication to external OAuth providers while maintaining control over token validation and user sessions.
 
+### Token Verification Requirement
+
+OAuth proxy mode validates tokens issued by the upstream provider using a `JWTVerifier`. Because the MCP server itself never issues these tokens, it needs a way to verify their signatures independently -- either by fetching signing keys dynamically from the provider's JWKS endpoint, or by checking against a static public key/secret. At least one of `ITENTIAL_MCP_SERVER_AUTH_JWKS_URI` (`--auth-jwks-uri`) or `ITENTIAL_MCP_SERVER_AUTH_PUBLIC_KEY` (`--auth-public-key`) is therefore **required** when `auth_type` is `oauth_proxy`. If neither is set, the server raises a `ConfigurationException` at startup rather than proceeding without a way to validate tokens.
+
 ### Supported Providers
 
 The MCP server includes predefined configurations for popular OAuth providers:
@@ -110,6 +116,8 @@ export ITENTIAL_MCP_SERVER_AUTH_OAUTH_CLIENT_SECRET="your-azure-client-secret"
 export ITENTIAL_MCP_SERVER_AUTH_OAUTH_AUTHORIZATION_URL="https://login.microsoftonline.com/common/oauth2/v2.0/authorize"
 export ITENTIAL_MCP_SERVER_AUTH_OAUTH_TOKEN_URL="https://login.microsoftonline.com/common/oauth2/v2.0/token"
 export ITENTIAL_MCP_SERVER_AUTH_OAUTH_REDIRECT_URI="http://localhost:8000/auth/callback"
+# Replace {tenant} with your Azure AD tenant ID, or "common" for multi-tenant apps
+export ITENTIAL_MCP_SERVER_AUTH_JWKS_URI="https://login.microsoftonline.com/{tenant}/discovery/v2.0/keys"
 ```
 
 **Default scopes for Azure:** `openid email profile`
@@ -125,6 +133,15 @@ export ITENTIAL_MCP_SERVER_AUTH_OAUTH_TOKEN_URL="https://github.com/login/oauth/
 export ITENTIAL_MCP_SERVER_AUTH_OAUTH_REDIRECT_URI="http://localhost:8000/auth/callback"
 ```
 
+**Note:** GitHub OAuth access tokens are opaque strings, not JWTs, and GitHub does not
+publish a JWKS endpoint for verifying them. `oauth_proxy` mode requires a `JWTVerifier`
+(configured via `ITENTIAL_MCP_SERVER_AUTH_JWKS_URI` or `ITENTIAL_MCP_SERVER_AUTH_PUBLIC_KEY`),
+so GitHub's standard OAuth token flow is not directly compatible with this mode as
+documented here. If you need to front GitHub authentication with `oauth_proxy`, you must
+put an identity layer in front of it that issues verifiable JWTs (for example, GitHub
+Apps' OIDC-based flows or a third-party identity broker) and point `jwks_uri` at that
+layer's JWKS endpoint instead of a GitHub URL.
+
 **Default scopes for GitHub:** `user:email`
 
 #### Auth0 OAuth
@@ -136,6 +153,7 @@ export ITENTIAL_MCP_SERVER_AUTH_OAUTH_CLIENT_SECRET="your-auth0-client-secret"
 export ITENTIAL_MCP_SERVER_AUTH_OAUTH_AUTHORIZATION_URL="https://your-domain.auth0.com/authorize"
 export ITENTIAL_MCP_SERVER_AUTH_OAUTH_TOKEN_URL="https://your-domain.auth0.com/oauth/token"
 export ITENTIAL_MCP_SERVER_AUTH_OAUTH_REDIRECT_URI="http://localhost:8000/auth/callback"
+export ITENTIAL_MCP_SERVER_AUTH_JWKS_URI="https://your-domain.auth0.com/.well-known/jwks.json"
 ```
 
 **Default scopes for Auth0:** `openid email profile`
@@ -149,6 +167,7 @@ export ITENTIAL_MCP_SERVER_AUTH_OAUTH_CLIENT_SECRET="your-okta-client-secret"
 export ITENTIAL_MCP_SERVER_AUTH_OAUTH_AUTHORIZATION_URL="https://your-domain.okta.com/oauth2/default/v1/authorize"
 export ITENTIAL_MCP_SERVER_AUTH_OAUTH_TOKEN_URL="https://your-domain.okta.com/oauth2/default/v1/token"
 export ITENTIAL_MCP_SERVER_AUTH_OAUTH_REDIRECT_URI="http://localhost:8000/auth/callback"
+export ITENTIAL_MCP_SERVER_AUTH_JWKS_URI="https://your-domain.okta.com/oauth2/default/v1/keys"
 ```
 
 **Default scopes for Okta:** `openid email profile`
@@ -164,6 +183,8 @@ export ITENTIAL_MCP_SERVER_AUTH_OAUTH_TOKEN_URL="https://provider.example.com/oa
 export ITENTIAL_MCP_SERVER_AUTH_OAUTH_USERINFO_URL="https://provider.example.com/oauth/userinfo"
 export ITENTIAL_MCP_SERVER_AUTH_OAUTH_SCOPES="openid email profile"
 export ITENTIAL_MCP_SERVER_AUTH_OAUTH_REDIRECT_URI="http://localhost:8000/auth/callback"
+# Replace with your provider's actual JWKS endpoint
+export ITENTIAL_MCP_SERVER_AUTH_JWKS_URI="https://provider.example.com/.well-known/jwks.json"
 ```
 
 **Note:** Generic providers require explicit scope configuration.
@@ -215,6 +236,7 @@ export ITENTIAL_MCP_SERVER_AUTH_OAUTH_AUTHORIZATION_URL="https://accounts.google
 export ITENTIAL_MCP_SERVER_AUTH_OAUTH_TOKEN_URL="https://oauth2.googleapis.com/token"
 export ITENTIAL_MCP_SERVER_AUTH_OAUTH_REDIRECT_URI="http://localhost:8000/auth/callback"
 export ITENTIAL_MCP_SERVER_AUTH_OAUTH_SCOPES="openid email profile"
+export ITENTIAL_MCP_SERVER_AUTH_JWKS_URI="https://www.googleapis.com/oauth2/v3/certs"
 
 # Start the server
 itential-mcp --transport sse --host 0.0.0.0 --port 8000
@@ -255,6 +277,7 @@ export ITENTIAL_MCP_SERVER_AUTH_OAUTH_AUTHORIZATION_URL="https://login.microsoft
 export ITENTIAL_MCP_SERVER_AUTH_OAUTH_TOKEN_URL="https://login.microsoftonline.com/your-tenant-id/oauth2/v2.0/token"
 export ITENTIAL_MCP_SERVER_AUTH_OAUTH_REDIRECT_URI="https://your-domain.com/auth/callback"
 export ITENTIAL_MCP_SERVER_AUTH_OAUTH_SCOPES="https://graph.microsoft.com/User.Read openid email profile"
+export ITENTIAL_MCP_SERVER_AUTH_JWKS_URI="https://login.microsoftonline.com/your-tenant-id/discovery/v2.0/keys"
 
 itential-mcp --transport sse --host 0.0.0.0 --port 8000
 ```
@@ -275,6 +298,11 @@ itential-mcp --transport sse --host 0.0.0.0 --port 8000
 **Missing required fields:**
 ```
 ConfigurationException: OAuth proxy authentication requires the following fields: client_id, client_secret, authorization_url, token_url, redirect_uri
+```
+
+**Missing token verifier:**
+```
+ConfigurationException: OAuth proxy authentication requires a token verifier: set jwks_uri or public_key
 ```
 
 **Transport compatibility:**

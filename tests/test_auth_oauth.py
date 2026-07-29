@@ -198,9 +198,9 @@ class TestOAuthProviderBuilding:
         )
 
     @patch("itential_mcp.server.auth.OAuthProxy")
-    @patch("fastmcp.server.auth.StaticTokenVerifier")
+    @patch("itential_mcp.server.auth.JWTVerifier")
     def test_build_oauth_proxy_provider_success(
-        self, mock_token_verifier, mock_oauth_proxy
+        self, mock_jwt_verifier, mock_oauth_proxy
     ):
         """Test successful OAuth proxy provider building."""
         from itential_mcp.config.converters import auth_to_dict
@@ -213,11 +213,12 @@ class TestOAuthProviderBuilding:
                 oauth_authorization_url="https://accounts.google.com/oauth/authorize",
                 oauth_token_url="https://oauth2.googleapis.com/token",
                 oauth_redirect_uri="http://localhost:8000/auth/callback",
+                jwks_uri="https://accounts.google.com/.well-known/jwks.json",
             )
         )
 
         mock_verifier_instance = MagicMock()
-        mock_token_verifier.return_value = mock_verifier_instance
+        mock_jwt_verifier.return_value = mock_verifier_instance
 
         mock_provider = MagicMock()
         mock_oauth_proxy.return_value = mock_provider
@@ -225,6 +226,9 @@ class TestOAuthProviderBuilding:
         result = _build_oauth_proxy_provider(auth_config)
 
         assert result == mock_provider
+        mock_jwt_verifier.assert_called_once_with(
+            jwks_uri="https://accounts.google.com/.well-known/jwks.json"
+        )
         mock_oauth_proxy.assert_called_once_with(
             upstream_authorization_endpoint="https://accounts.google.com/oauth/authorize",
             upstream_token_endpoint="https://oauth2.googleapis.com/token",
@@ -235,9 +239,9 @@ class TestOAuthProviderBuilding:
         )
 
     @patch("itential_mcp.server.auth.OAuthProxy")
-    @patch("fastmcp.server.auth.StaticTokenVerifier")
+    @patch("itential_mcp.server.auth.JWTVerifier")
     def test_build_oauth_proxy_provider_base_url_suffix_removal_only(
-        self, mock_token_verifier, mock_oauth_proxy
+        self, mock_jwt_verifier, mock_oauth_proxy
     ):
         """Test that base_url derivation only strips the literal suffix.
 
@@ -261,11 +265,12 @@ class TestOAuthProviderBuilding:
                 oauth_authorization_url="https://accounts.google.com/oauth/authorize",
                 oauth_token_url="https://oauth2.googleapis.com/token",
                 oauth_redirect_uri="https://auth-host.example.uk/auth/callback",
+                jwks_uri="https://accounts.google.com/.well-known/jwks.json",
             )
         )
 
         mock_verifier_instance = MagicMock()
-        mock_token_verifier.return_value = mock_verifier_instance
+        mock_jwt_verifier.return_value = mock_verifier_instance
 
         mock_provider = MagicMock()
         mock_oauth_proxy.return_value = mock_provider
@@ -302,6 +307,68 @@ class TestOAuthProviderBuilding:
         assert "authorization_url" in str(exc_info.value)
         assert "token_url" in str(exc_info.value)
         assert "redirect_uri" in str(exc_info.value)
+
+    def test_build_oauth_proxy_provider_missing_token_verifier_config(self):
+        """Test OAuth proxy provider building without jwks_uri or public_key.
+
+        All other required fields are present, but neither jwks_uri nor
+        public_key is set, so there is no way to construct a token
+        verifier. This must raise a clear ConfigurationException rather
+        than crashing with a TypeError at OAuthProxy construction time.
+        """
+        from itential_mcp.config.converters import auth_to_dict
+
+        auth_config = auth_to_dict(
+            make_auth_config(
+                type="oauth_proxy",
+                oauth_client_id="test_client",
+                oauth_client_secret="test_secret",
+                oauth_authorization_url="https://accounts.google.com/oauth/authorize",
+                oauth_token_url="https://oauth2.googleapis.com/token",
+                oauth_redirect_uri="http://localhost:8000/auth/callback",
+            )
+        )
+
+        with pytest.raises(ConfigurationException) as exc_info:
+            _build_oauth_proxy_provider(auth_config)
+
+        assert "token verifier" in str(exc_info.value)
+
+    def test_build_oauth_proxy_provider_real_jwt_verifier_no_mocking(self):
+        """Regression test: oauth_proxy must build a real, working JWTVerifier.
+
+        This test does not mock JWTVerifier or OAuthProxy at all. It
+        exercises the actual construction path end-to-end. On the old,
+        broken code this would fail with:
+
+            TypeError: StaticTokenVerifier.__init__() missing 1 required
+            positional argument: 'tokens'
+
+        because the fallback unconditionally constructed
+        ``StaticTokenVerifier()`` with no arguments. With the fix, a real
+        ``JWTVerifier`` is constructed from ``jwks_uri`` and the resulting
+        ``OAuthProxy`` provider is returned successfully.
+        """
+        from itential_mcp.config.converters import auth_to_dict
+
+        auth_config = auth_to_dict(
+            make_auth_config(
+                type="oauth_proxy",
+                oauth_client_id="test_client",
+                oauth_client_secret="test_secret",
+                oauth_authorization_url="https://accounts.google.com/oauth/authorize",
+                oauth_token_url="https://oauth2.googleapis.com/token",
+                oauth_redirect_uri="http://localhost:8000/auth/callback",
+                jwks_uri="https://accounts.google.com/.well-known/jwks.json",
+            )
+        )
+
+        provider = _build_oauth_proxy_provider(auth_config)
+
+        assert isinstance(provider, OAuthProxy)
+        # OAuthProxy stores the token verifier internally as
+        # `_token_validator` (fastmcp does not expose a public accessor).
+        assert isinstance(provider._token_validator, JWTVerifier)
 
 
 class TestProviderConfiguration:
@@ -436,8 +503,8 @@ class TestFullAuthProviderFactory:
         assert provider == mock_provider
 
     @patch("itential_mcp.server.auth.OAuthProxy")
-    @patch("fastmcp.server.auth.StaticTokenVerifier")
-    def test_oauth_proxy_auth_provider(self, mock_token_verifier, mock_oauth_proxy):
+    @patch("itential_mcp.server.auth.JWTVerifier")
+    def test_oauth_proxy_auth_provider(self, mock_jwt_verifier, mock_oauth_proxy):
         """Test building OAuth proxy auth provider."""
         config = MagicMock(spec=Config)
         config.auth = AuthConfig(
@@ -447,10 +514,11 @@ class TestFullAuthProviderFactory:
             oauth_authorization_url="https://accounts.google.com/oauth/authorize",
             oauth_token_url="https://oauth2.googleapis.com/token",
             oauth_redirect_uri="http://localhost:8000/auth/callback",
+            jwks_uri="https://accounts.google.com/.well-known/jwks.json",
         )
 
         mock_verifier_instance = MagicMock()
-        mock_token_verifier.return_value = mock_verifier_instance
+        mock_jwt_verifier.return_value = mock_verifier_instance
 
         mock_provider = MagicMock()
         mock_oauth_proxy.return_value = mock_provider
