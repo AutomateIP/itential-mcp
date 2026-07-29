@@ -8,7 +8,10 @@ import tempfile
 import textwrap
 from unittest.mock import AsyncMock, patch, MagicMock
 
+import ipsdk
+
 from itential_mcp.platform import PlatformClient
+from itential_mcp.platform.client import _ErrorFormattingClient, _format_error_message
 from ipsdk.http import HTTPMethod
 
 
@@ -177,7 +180,10 @@ def test_init_plugins_loads_valid_services(
             # Should have loaded the valid service
             assert hasattr(client, "test_service")
             assert client.test_service.name == "test_service"
-            assert client.test_service.client is mock_ipsdk_client
+            # Services receive the error-formatting wrapper, not the raw
+            # ipsdk client, so that HTTP errors surface response bodies.
+            assert isinstance(client.test_service.client, _ErrorFormattingClient)
+            assert client.test_service.client._client is mock_ipsdk_client
 
             # Should not have loaded invalid or private services
             assert not hasattr(client, "invalid_service")
@@ -906,6 +912,89 @@ def test_init_client_with_disable_tls_warning(mock_config_with_disable_tls):
 
 
 @pytest.mark.asyncio
+async def test_send_request_includes_response_body(
+    patched_platform_factory, patched_config_get, mock_ipsdk_client
+):
+    """Test that send_request includes the upstream response body text in
+    the raised ItentialMcpException message when the underlying exception
+    carries a `.response` attribute."""
+    from itential_mcp.core.exceptions import ItentialMcpException
+
+    mock_response = MagicMock()
+    mock_response.text = '{"error": "invalid device_type"}'
+
+    error = Exception("400 Bad Request")
+    error.response = mock_response
+
+    mock_ipsdk_client._send_request = AsyncMock(side_effect=error)
+
+    client = PlatformClient()
+
+    with pytest.raises(ItentialMcpException) as exc_info:
+        await client.send_request(method="POST", path="/test")
+
+    message = str(exc_info.value)
+    assert "400 Bad Request" in message
+    assert '{"error": "invalid device_type"}' in message
+
+
+@pytest.mark.asyncio
+async def test_send_request_truncates_long_response_body(
+    patched_platform_factory, patched_config_get, mock_ipsdk_client
+):
+    """Test that an overly long response body is truncated to
+    MAX_ERROR_BODY_LENGTH characters and suffixed with a truncation marker."""
+    from itential_mcp.core.exceptions import ItentialMcpException
+    from itential_mcp.platform.client import MAX_ERROR_BODY_LENGTH
+
+    long_body = "x" * (MAX_ERROR_BODY_LENGTH + 500)
+
+    mock_response = MagicMock()
+    mock_response.text = long_body
+
+    error = Exception("500 Server Error")
+    error.response = mock_response
+
+    mock_ipsdk_client._send_request = AsyncMock(side_effect=error)
+
+    client = PlatformClient()
+
+    with pytest.raises(ItentialMcpException) as exc_info:
+        await client.send_request(method="GET", path="/test")
+
+    message = str(exc_info.value)
+    assert "... (truncated)" in message
+    # Ensure the body portion embedded in the message was capped
+    truncated_segment = message.split("response: ")[1]
+    assert truncated_segment.startswith("x" * MAX_ERROR_BODY_LENGTH)
+    assert truncated_segment == f"{'x' * MAX_ERROR_BODY_LENGTH}... (truncated)"
+
+
+@pytest.mark.asyncio
+async def test_send_request_without_response_falls_back_to_str(
+    patched_platform_factory, patched_config_get, mock_ipsdk_client
+):
+    """Regression guard: when the underlying exception has no `.response`
+    attribute (or it is None), send_request should still raise an
+    ItentialMcpException with the plain string of the original exception,
+    matching the pre-existing behavior."""
+    from itential_mcp.core.exceptions import ItentialMcpException
+
+    mock_ipsdk_client._send_request = AsyncMock(
+        side_effect=Exception("Connection failed")
+    )
+
+    client = PlatformClient()
+
+    with pytest.raises(ItentialMcpException) as exc_info:
+        await client.send_request(method="GET", path="/test")
+
+    message = str(exc_info.value)
+    assert message == "Connection failed"
+    assert "response:" not in message
+
+
+@pytest.mark.asyncio
 async def test_send_request_timeout_error(
     patched_platform_factory, patched_config_get, mock_ipsdk_client
 ):
@@ -926,3 +1015,331 @@ async def test_send_request_timeout_error(
         await client.send_request(method="GET", path="/test", timeout=0.001)
 
     assert "timed out" in str(exc_info.value)
+
+
+def test_format_error_message_module_level_includes_response_body():
+    """Test that the module-level _format_error_message helper includes the
+    upstream response body when the exception carries a `.response`."""
+    mock_response = MagicMock()
+    mock_response.text = '{"error": "invalid device_type"}'
+
+    error = Exception("400 Bad Request")
+    error.response = mock_response
+
+    message = _format_error_message(error)
+
+    assert "400 Bad Request" in message
+    assert '{"error": "invalid device_type"}' in message
+
+
+def test_format_error_message_module_level_truncates_long_body():
+    """Test that the module-level _format_error_message helper truncates an
+    overly long response body."""
+    from itential_mcp.platform.client import MAX_ERROR_BODY_LENGTH
+
+    long_body = "x" * (MAX_ERROR_BODY_LENGTH + 500)
+
+    mock_response = MagicMock()
+    mock_response.text = long_body
+
+    error = Exception("500 Server Error")
+    error.response = mock_response
+
+    message = _format_error_message(error)
+
+    assert "... (truncated)" in message
+    truncated_segment = message.split("response: ")[1]
+    assert truncated_segment == f"{'x' * MAX_ERROR_BODY_LENGTH}... (truncated)"
+
+
+def test_format_error_message_module_level_without_response_falls_back():
+    """Test that the module-level _format_error_message helper falls back to
+    str(exc) when there is no `.response` attribute."""
+    error = Exception("Connection failed")
+
+    message = _format_error_message(error)
+
+    assert message == "Connection failed"
+    assert "response:" not in message
+
+
+def _make_http_status_error(body_text: str, message: str = "400 Bad Request"):
+    """Build a real ipsdk.exceptions.HTTPStatusError with a mock response body."""
+    mock_response = MagicMock()
+    mock_response.text = body_text
+
+    httpx_exc = MagicMock()
+    httpx_exc.args = (message,)
+    httpx_exc.response = mock_response
+    httpx_exc.request = MagicMock()
+
+    return ipsdk.exceptions.HTTPStatusError(httpx_exc)
+
+
+@pytest.mark.asyncio
+async def test_error_formatting_client_get_returns_raw_response_on_success():
+    """Test that _ErrorFormattingClient.get returns the raw response object
+    unchanged (same identity) on success."""
+    raw_client = AsyncMock()
+    sentinel_response = MagicMock()
+    raw_client.get = AsyncMock(return_value=sentinel_response)
+
+    wrapper = _ErrorFormattingClient(raw_client)
+    result = await wrapper.get("/path", params={"a": 1})
+
+    raw_client.get.assert_called_once_with("/path", params={"a": 1})
+    assert result is sentinel_response
+
+
+@pytest.mark.asyncio
+async def test_error_formatting_client_post_returns_raw_response_on_success():
+    """Test that _ErrorFormattingClient.post returns the raw response object
+    unchanged (same identity) on success."""
+    raw_client = AsyncMock()
+    sentinel_response = MagicMock()
+    raw_client.post = AsyncMock(return_value=sentinel_response)
+
+    wrapper = _ErrorFormattingClient(raw_client)
+    result = await wrapper.post("/path", params={"a": 1}, json={"b": 2})
+
+    raw_client.post.assert_called_once_with("/path", params={"a": 1}, json={"b": 2})
+    assert result is sentinel_response
+
+
+@pytest.mark.asyncio
+async def test_error_formatting_client_put_returns_raw_response_on_success():
+    """Test that _ErrorFormattingClient.put returns the raw response object
+    unchanged (same identity) on success."""
+    raw_client = AsyncMock()
+    sentinel_response = MagicMock()
+    raw_client.put = AsyncMock(return_value=sentinel_response)
+
+    wrapper = _ErrorFormattingClient(raw_client)
+    result = await wrapper.put("/path", json={"b": 2})
+
+    raw_client.put.assert_called_once_with("/path", params=None, json={"b": 2})
+    assert result is sentinel_response
+
+
+@pytest.mark.asyncio
+async def test_error_formatting_client_delete_returns_raw_response_on_success():
+    """Test that _ErrorFormattingClient.delete returns the raw response object
+    unchanged (same identity) on success."""
+    raw_client = AsyncMock()
+    sentinel_response = MagicMock()
+    raw_client.delete = AsyncMock(return_value=sentinel_response)
+
+    wrapper = _ErrorFormattingClient(raw_client)
+    result = await wrapper.delete("/path")
+
+    raw_client.delete.assert_called_once_with("/path", params=None)
+    assert result is sentinel_response
+
+
+@pytest.mark.asyncio
+async def test_error_formatting_client_get_reformats_http_status_error():
+    """Test that _ErrorFormattingClient.get reformats HTTPStatusError to
+    include the upstream response body."""
+    from itential_mcp.core.exceptions import ItentialMcpException
+
+    raw_client = AsyncMock()
+    raw_client.get = AsyncMock(
+        side_effect=_make_http_status_error('{"error": "not found"}', "404 Not Found")
+    )
+
+    wrapper = _ErrorFormattingClient(raw_client)
+
+    with pytest.raises(ItentialMcpException) as exc_info:
+        await wrapper.get("/missing")
+
+    message = str(exc_info.value)
+    assert "404 Not Found" in message
+    assert '{"error": "not found"}' in message
+
+
+@pytest.mark.asyncio
+async def test_error_formatting_client_post_reformats_http_status_error():
+    """Test that _ErrorFormattingClient.post reformats HTTPStatusError to
+    include the upstream response body."""
+    from itential_mcp.core.exceptions import ItentialMcpException
+
+    raw_client = AsyncMock()
+    raw_client.post = AsyncMock(
+        side_effect=_make_http_status_error(
+            '{"error": "invalid device_type"}', "400 Bad Request"
+        )
+    )
+
+    wrapper = _ErrorFormattingClient(raw_client)
+
+    with pytest.raises(ItentialMcpException) as exc_info:
+        await wrapper.post("/create", json={"foo": "bar"})
+
+    message = str(exc_info.value)
+    assert "400 Bad Request" in message
+    assert '{"error": "invalid device_type"}' in message
+
+
+@pytest.mark.asyncio
+async def test_error_formatting_client_put_reformats_http_status_error():
+    """Test that _ErrorFormattingClient.put reformats HTTPStatusError to
+    include the upstream response body."""
+    from itential_mcp.core.exceptions import ItentialMcpException
+
+    raw_client = AsyncMock()
+    raw_client.put = AsyncMock(
+        side_effect=_make_http_status_error('{"error": "conflict"}', "409 Conflict")
+    )
+
+    wrapper = _ErrorFormattingClient(raw_client)
+
+    with pytest.raises(ItentialMcpException):
+        await wrapper.put("/update/1", json={"foo": "bar"})
+
+
+@pytest.mark.asyncio
+async def test_error_formatting_client_delete_reformats_http_status_error():
+    """Test that _ErrorFormattingClient.delete reformats HTTPStatusError to
+    include the upstream response body."""
+    from itential_mcp.core.exceptions import ItentialMcpException
+
+    raw_client = AsyncMock()
+    raw_client.delete = AsyncMock(
+        side_effect=_make_http_status_error('{"error": "forbidden"}', "403 Forbidden")
+    )
+
+    wrapper = _ErrorFormattingClient(raw_client)
+
+    with pytest.raises(ItentialMcpException) as exc_info:
+        await wrapper.delete("/resource/1")
+
+    message = str(exc_info.value)
+    assert "403 Forbidden" in message
+    assert '{"error": "forbidden"}' in message
+
+
+@pytest.mark.asyncio
+async def test_error_formatting_client_propagates_non_http_status_exceptions():
+    """Test that exceptions other than ipsdk.exceptions.HTTPStatusError are
+    NOT caught or modified by _ErrorFormattingClient -- they propagate
+    completely unchanged."""
+    raw_client = AsyncMock()
+    raw_client.get = AsyncMock(side_effect=ValueError("boom"))
+
+    wrapper = _ErrorFormattingClient(raw_client)
+
+    with pytest.raises(ValueError, match="boom"):
+        await wrapper.get("/path")
+
+
+@pytest.mark.asyncio
+async def test_error_formatting_client_propagates_ipsdk_request_error():
+    """Test that ipsdk.exceptions.RequestError (network-level errors) is not
+    caught by _ErrorFormattingClient and propagates unchanged."""
+    httpx_exc = MagicMock()
+    httpx_exc.args = ("Connection refused",)
+    httpx_exc.request = MagicMock()
+
+    request_error = ipsdk.exceptions.RequestError(httpx_exc)
+
+    raw_client = AsyncMock()
+    raw_client.post = AsyncMock(side_effect=request_error)
+
+    wrapper = _ErrorFormattingClient(raw_client)
+
+    with pytest.raises(ipsdk.exceptions.RequestError):
+        await wrapper.post("/path", json={})
+
+
+def test_error_formatting_client_getattr_delegates_to_wrapped_client():
+    """Test that __getattr__ forwards arbitrary attribute access to the
+    wrapped raw client (needed so ServiceBase._paginate and similar helpers
+    keep working)."""
+    raw_client = MagicMock()
+    raw_client.some_arbitrary_attribute = "sentinel-value"
+
+    wrapper = _ErrorFormattingClient(raw_client)
+
+    assert wrapper.some_arbitrary_attribute == "sentinel-value"
+
+
+@pytest.mark.asyncio
+async def test_real_service_surfaces_response_body_through_wrapper():
+    """Load-bearing test: construct _ErrorFormattingClient around a mock raw
+    ipsdk client whose `post` raises a real ipsdk.exceptions.HTTPStatusError
+    with a response body, hand the wrapper to an actual
+    operations_manager.Service instance, and call a real service method.
+
+    This proves the fix reaches real tool call paths -- service plugins call
+    get/post/put/delete directly on the raw ipsdk client, bypassing
+    PlatformClient.send_request()/_format_error_message() entirely. Prior
+    test coverage always used AsyncMock() clients directly, which bypassed
+    the wrapper and gave false confidence.
+    """
+    from itential_mcp.core.exceptions import ItentialMcpException
+    from itential_mcp.platform.services import operations_manager
+
+    raw_client = AsyncMock()
+    raw_client.post = AsyncMock(
+        side_effect=_make_http_status_error(
+            '{"error": "invalid input for workflow trigger"}',
+            "400 Bad Request",
+        )
+    )
+
+    wrapper = _ErrorFormattingClient(raw_client)
+    service = operations_manager.Service(wrapper)
+
+    with pytest.raises(ItentialMcpException) as exc_info:
+        await service.start_workflow("my-workflow-route", {"device": "router1"})
+
+    message = str(exc_info.value)
+    assert "400 Bad Request" in message
+    assert '{"error": "invalid input for workflow trigger"}' in message
+
+
+@pytest.mark.asyncio
+async def test_init_plugins_wires_error_formatting_client_into_services(
+    patched_platform_factory, patched_config_get, mock_ipsdk_client
+):
+    """Test that _init_plugins passes an _ErrorFormattingClient (not the raw
+    ipsdk client) to service constructors, and that HTTP errors raised from
+    calls made through a loaded service surface the response body."""
+    from itential_mcp.core.exceptions import ItentialMcpException
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        services_dir = pathlib.Path(temp_dir) / "services"
+        services_dir.mkdir()
+
+        service_file = services_dir / "probe_service.py"
+        service_file.write_text(
+            textwrap.dedent("""
+            class Service:
+                def __init__(self, client):
+                    self.client = client
+                    self.name = "probe_service"
+
+                async def do_get(self, path):
+                    return await self.client.get(path)
+        """)
+        )
+
+        with patch("itential_mcp.platform.client.pathlib.Path.resolve") as resolve_mock:
+            resolve_mock.return_value.parent = pathlib.Path(temp_dir)
+
+            client = PlatformClient()
+
+            # The service should have been handed the wrapper, not the raw client
+            assert isinstance(client.probe_service.client, _ErrorFormattingClient)
+            assert client.probe_service.client._client is mock_ipsdk_client
+
+            mock_ipsdk_client.get = AsyncMock(
+                side_effect=_make_http_status_error('{"error": "gone"}', "410 Gone")
+            )
+
+            with pytest.raises(ItentialMcpException) as exc_info:
+                await client.probe_service.do_get("/resource")
+
+            message = str(exc_info.value)
+            assert "410 Gone" in message
+            assert '{"error": "gone"}' in message

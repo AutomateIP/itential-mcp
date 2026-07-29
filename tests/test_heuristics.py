@@ -361,3 +361,100 @@ password=mysecretpass"""
         assert "[REDACTED_PASSWORD]" in redacted
         assert "secret1234567890abcdef" not in redacted
         assert "mysecretpass" not in redacted
+
+    def test_json_quoted_key_detection(self):
+        """Test detection and redaction of sensitive data in JSON-formatted
+        content where the key name is quoted, e.g. `"api_key": "value"`.
+
+        This is the realistic shape of an upstream HTTP API error response
+        body (JSON), which is surfaced verbatim in exception messages by
+        `platform.client._format_error_message()`.
+        """
+        scanner = Scanner()
+
+        test_cases = [
+            (
+                '"api_key": "AKIA1234567890ABCDEF12"',
+                "api_key",
+                "AKIA1234567890ABCDEF12",
+            ),
+            (
+                '"password": "SuperSecretPass123"',
+                "password",
+                "SuperSecretPass123",
+            ),
+            (
+                '"secret": "topsecretvalue1234"',
+                "secret",
+                "topsecretvalue1234",
+            ),
+            (
+                '"access_token": "abcdefghij1234567890ABCD"',
+                "access_token",
+                "abcdefghij1234567890ABCD",
+            ),
+        ]
+
+        for text, pattern_name, secret_value in test_cases:
+            assert scanner.has_sensitive_data(text)
+            redacted = scanner.scan_and_redact(text)
+            assert f"[REDACTED_{pattern_name.upper()}]" in redacted
+            assert secret_value not in redacted
+
+    def test_json_single_quoted_key_detection(self):
+        """Test detection and redaction of sensitive data in JSON-like
+        content where the key name is single-quoted, e.g.
+        `'api_key': 'value'`.
+
+        Mirrors `test_json_quoted_key_detection` but for the single-quote
+        form, which is used by e.g. Python `repr()`-style dict output.
+        """
+        scanner = Scanner()
+
+        test_cases = [
+            (
+                "'api_key': 'AKIA1234567890ABCDEF12'",
+                "api_key",
+                "AKIA1234567890ABCDEF12",
+            ),
+            (
+                "'password': 'SuperSecretPass123'",
+                "password",
+                "SuperSecretPass123",
+            ),
+            (
+                "'secret': 'topsecretvalue1234'",
+                "secret",
+                "topsecretvalue1234",
+            ),
+            (
+                "'access_token': 'abcdefghij1234567890ABCD'",
+                "access_token",
+                "abcdefghij1234567890ABCD",
+            ),
+        ]
+
+        for text, pattern_name, secret_value in test_cases:
+            assert scanner.has_sensitive_data(text)
+            redacted = scanner.scan_and_redact(text)
+            assert f"[REDACTED_{pattern_name.upper()}]" in redacted
+            assert secret_value not in redacted
+
+    def test_json_quoted_key_nested_in_object(self):
+        """Test that sensitive JSON keys are redacted even when nested
+        inside a larger JSON object, without over-matching neighboring
+        fields.
+        """
+        scanner = Scanner()
+
+        text = (
+            '{"error": "unauthorized", "details": '
+            '{"api_key": "AKIA1234567890ABCDEF12", "reason": "invalid"}}'
+        )
+
+        redacted = scanner.scan_and_redact(text)
+        assert "[REDACTED_API_KEY]" in redacted
+        assert "AKIA1234567890ABCDEF12" not in redacted
+        # Sibling fields in the same JSON object must be left untouched.
+        assert '"error": "unauthorized"' in redacted
+        assert '"reason": "invalid"' in redacted

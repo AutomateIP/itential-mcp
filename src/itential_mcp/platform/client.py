@@ -2,10 +2,13 @@
 # GNU General Public License v3.0+ (see LICENSE or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+from __future__ import annotations
+
 import asyncio
 import pathlib
 import importlib
 import importlib.util
+from typing import Any
 
 import ipsdk
 
@@ -18,6 +21,186 @@ from ..config.converters import platform_to_dict
 from . import response
 from ..core import exceptions
 from ..core import logging
+
+# Maximum number of characters of an upstream response body to include in an
+# error message. Longer bodies are truncated to keep error output readable.
+MAX_ERROR_BODY_LENGTH = 2048
+
+
+def _format_error_message(exc: Exception) -> str:
+    """Build an error message that includes the upstream response body.
+
+    When the underlying exception carries an HTTP response (e.g. from
+    ipsdk/httpx), the response body text is appended to the exception
+    message so callers can see the actual error returned by the
+    platform, not just a terse status line. The body is truncated to
+    `MAX_ERROR_BODY_LENGTH` characters to keep error output readable.
+
+    Only response bodies are ever included here -- request bodies are
+    never surfaced in error messages.
+
+    Args:
+        exc (Exception): The exception raised while sending the request.
+
+    Returns:
+        str: The formatted error message, including the response body
+            when available, or the plain exception message otherwise.
+
+    Raises:
+        None
+    """
+    if hasattr(exc, "response") and exc.response is not None:
+        try:
+            body = exc.response.text
+        except Exception:
+            body = None
+
+        if body:
+            if len(body) > MAX_ERROR_BODY_LENGTH:
+                body = f"{body[:MAX_ERROR_BODY_LENGTH]}... (truncated)"
+            return f"{exc} | response: {body}"
+
+    return str(exc)
+
+
+class _ErrorFormattingClient:
+    """Wraps a raw ipsdk client to surface upstream response bodies on error.
+
+    Service plugins under `platform/services/*.py` call `get`/`post`/`put`/
+    `delete` directly on the raw ipsdk `AsyncPlatform` client, bypassing
+    `PlatformClient.send_request()` entirely. This wrapper sits between the
+    service plugins and the raw client so that `ipsdk.exceptions.HTTPStatusError`
+    raised from any of those calls is reformatted to include the upstream
+    response body, matching the error detail already provided on the
+    `send_request()`/CLI code path.
+
+    Only `ipsdk.exceptions.HTTPStatusError` is intercepted here. All other
+    exceptions (network errors, timeouts, SDK errors, etc.) propagate
+    unchanged, exactly as they would without this wrapper.
+
+    The raw ipsdk response object is returned unchanged on success -- it is
+    not wrapped in `platform.response.Response` since services consume the
+    raw response shape directly (e.g. via `.json()`).
+
+    Attributes:
+        _client (AsyncPlatform): The wrapped raw ipsdk client.
+    """
+
+    def __init__(self, client: AsyncPlatform):
+        """Initialize the wrapper around a raw ipsdk client.
+
+        Args:
+            client (AsyncPlatform): The raw ipsdk client to wrap.
+
+        Returns:
+            None
+
+        Raises:
+            None
+        """
+        self._client = client
+
+    async def get(self, path: str, params: dict[str, Any] | None = None) -> Any:
+        """Send an HTTP GET request via the wrapped client.
+
+        Args:
+            path (str): The URI path to request.
+            params (dict[str, Any] | None): Query string parameters. Defaults to None.
+
+        Returns:
+            Any: The raw ipsdk response object, unchanged.
+
+        Raises:
+            exceptions.ItentialMcpException: If the server returns an HTTP
+                error status, with the upstream response body included.
+        """
+        try:
+            return await self._client.get(path, params=params)
+        except ipsdk.exceptions.HTTPStatusError as exc:
+            raise exceptions.ItentialMcpException(_format_error_message(exc))
+
+    async def post(
+        self,
+        path: str,
+        params: dict[str, Any] | None = None,
+        json: str | bytes | dict | list | None = None,
+    ) -> Any:
+        """Send an HTTP POST request via the wrapped client.
+
+        Args:
+            path (str): The URI path to request.
+            params (dict[str, Any] | None): Query string parameters. Defaults to None.
+            json (str | bytes | dict | list | None): JSON body to send. Defaults to None.
+
+        Returns:
+            Any: The raw ipsdk response object, unchanged.
+
+        Raises:
+            exceptions.ItentialMcpException: If the server returns an HTTP
+                error status, with the upstream response body included.
+        """
+        try:
+            return await self._client.post(path, params=params, json=json)
+        except ipsdk.exceptions.HTTPStatusError as exc:
+            raise exceptions.ItentialMcpException(_format_error_message(exc))
+
+    async def put(
+        self,
+        path: str,
+        params: dict[str, Any] | None = None,
+        json: str | bytes | dict | list | None = None,
+    ) -> Any:
+        """Send an HTTP PUT request via the wrapped client.
+
+        Args:
+            path (str): The URI path to request.
+            params (dict[str, Any] | None): Query string parameters. Defaults to None.
+            json (str | bytes | dict | list | None): JSON body to send. Defaults to None.
+
+        Returns:
+            Any: The raw ipsdk response object, unchanged.
+
+        Raises:
+            exceptions.ItentialMcpException: If the server returns an HTTP
+                error status, with the upstream response body included.
+        """
+        try:
+            return await self._client.put(path, params=params, json=json)
+        except ipsdk.exceptions.HTTPStatusError as exc:
+            raise exceptions.ItentialMcpException(_format_error_message(exc))
+
+    async def delete(self, path: str, params: dict[str, Any] | None = None) -> Any:
+        """Send an HTTP DELETE request via the wrapped client.
+
+        Args:
+            path (str): The URI path to request.
+            params (dict[str, Any] | None): Query string parameters. Defaults to None.
+
+        Returns:
+            Any: The raw ipsdk response object, unchanged.
+
+        Raises:
+            exceptions.ItentialMcpException: If the server returns an HTTP
+                error status, with the upstream response body included.
+        """
+        try:
+            return await self._client.delete(path, params=params)
+        except ipsdk.exceptions.HTTPStatusError as exc:
+            raise exceptions.ItentialMcpException(_format_error_message(exc))
+
+    def __getattr__(self, name: str) -> Any:
+        """Delegate any other attribute access to the wrapped client.
+
+        Args:
+            name (str): The attribute name being accessed.
+
+        Returns:
+            Any: The attribute value from the wrapped client.
+
+        Raises:
+            AttributeError: If the wrapped client does not have the attribute.
+        """
+        return getattr(self._client, name)
 
 
 class PlatformClient(object):
@@ -146,6 +329,13 @@ class PlatformClient(object):
         if not services_path.exists():
             return
 
+        # Wrap the raw ipsdk client so that service plugins get response
+        # bodies included in HTTP error messages, matching the behavior of
+        # PlatformClient.send_request(). Service plugins call get/post/put/
+        # delete directly on this wrapped client rather than going through
+        # send_request().
+        wrapped_client = _ErrorFormattingClient(self.client)
+
         # Get Python files, excluding private modules and __pycache__
         python_files = [
             f
@@ -175,7 +365,7 @@ class PlatformClient(object):
                     )
                     continue
 
-                service_instance = module.Service(self.client)
+                service_instance = module.Service(wrapped_client)
 
                 # Validate service instance has a name attribute
                 if not hasattr(service_instance, "name"):
@@ -308,7 +498,7 @@ class PlatformClient(object):
                 f"Request to {path} timed out after {request_timeout}s"
             )
         except Exception as exc:
-            raise exceptions.ItentialMcpException(str(exc))
+            raise exceptions.ItentialMcpException(_format_error_message(exc))
 
         return await self._make_response(res)
 

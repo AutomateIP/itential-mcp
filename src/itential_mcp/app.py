@@ -8,6 +8,7 @@ import asyncio
 from .runtime import parse_args
 from .core import env
 from .core import logging
+from .core import heuristics
 
 
 def run() -> int:
@@ -31,6 +32,14 @@ def run() -> int:
         raise
     except Exception as e:
         logging.error(f"Application error: {e}")
+        # Always print a clean, single-line error message to stderr. The
+        # application logger is pinned above FATAL by default, so this is
+        # the only guaranteed-visible error output unless the caller has
+        # configured logging explicitly. This message may now carry
+        # upstream HTTP response bodies, so it is run through the same
+        # sensitive-data redaction pipeline used by core.logging before
+        # being printed.
+        print(heuristics.scan_and_redact(f"ERROR: {e}"), file=sys.stderr)
         if env.getbool("ITENTIAL_MCP_DEBUG", False):
             import traceback
 

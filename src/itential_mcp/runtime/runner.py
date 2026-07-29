@@ -44,6 +44,11 @@ async def run(tool: str, params: Mapping[str, Any] | None = None) -> None:
         ValueError: The one or more required parameters are missing
 
         ValueError: If there are invalid parameters
+
+        fastmcp.exceptions.ToolError: If the tool invocation fails on the
+            server side. This is intentionally not caught here so it
+            propagates to the caller (e.g. `app.run`) to be surfaced as a
+            visible error.
     """
     async with Server(config.get()) as srv:
         async with Client(srv.mcp) as client:
