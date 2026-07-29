@@ -64,17 +64,17 @@ def build_auth_provider(cfg: Config) -> AuthProvider | None:
         )
 
 
-def _build_jwt_provider(auth_config: dict[str, Any]) -> AuthProvider:
-    """Build a JWT authentication provider.
+def _build_jwt_verifier(auth_config: dict[str, Any]) -> JWTVerifier:
+    """Build a JWTVerifier instance from shared JWT-related configuration.
 
     Args:
         auth_config (dict[str, Any]): Authentication configuration dictionary.
 
     Returns:
-        AuthProvider: Configured JWT authentication provider.
+        JWTVerifier: Configured JWT token verifier.
 
     Raises:
-        ConfigurationException: If JWT provider initialization fails.
+        ConfigurationException: If JWT verifier initialization fails.
     """
     jwt_kwargs = {}
     if auth_config.get("jwks_uri"):
@@ -91,13 +91,28 @@ def _build_jwt_provider(auth_config: dict[str, Any]) -> AuthProvider:
         jwt_kwargs["required_scopes"] = auth_config["required_scopes"]
 
     try:
-        provider = JWTVerifier(**jwt_kwargs)
+        return JWTVerifier(**jwt_kwargs)
     except ValueError as exc:
         raise ConfigurationException(str(exc)) from exc
     except Exception as exc:
         raise ConfigurationException(
             f"Failed to initialize JWT authentication provider: {exc}"
         ) from exc
+
+
+def _build_jwt_provider(auth_config: dict[str, Any]) -> AuthProvider:
+    """Build a JWT authentication provider.
+
+    Args:
+        auth_config (dict[str, Any]): Authentication configuration dictionary.
+
+    Returns:
+        AuthProvider: Configured JWT authentication provider.
+
+    Raises:
+        ConfigurationException: If JWT provider initialization fails.
+    """
+    provider = _build_jwt_verifier(auth_config)
 
     logging.info("Server authentication enabled using JWT provider")
     return provider
@@ -170,14 +185,13 @@ def _build_oauth_proxy_provider(auth_config: dict[str, Any]) -> AuthProvider:
             f"OAuth proxy authentication requires the following fields: {', '.join(missing_fields)}"
         )
 
-    # Create a token verifier (can use JWTVerifier or StaticTokenVerifier)
-    try:
-        from fastmcp.server.auth import StaticTokenVerifier
+    if not auth_config.get("jwks_uri") and not auth_config.get("public_key"):
+        raise ConfigurationException(
+            "OAuth proxy authentication requires a token verifier: "
+            "set jwks_uri or public_key"
+        )
 
-        token_verifier = StaticTokenVerifier()  # Basic token verifier
-    except ImportError:
-        # Fallback to JWT verifier if StaticTokenVerifier not available
-        token_verifier = JWTVerifier()
+    token_verifier = _build_jwt_verifier(auth_config)
 
     base_url = auth_config["redirect_uri"].removesuffix("/auth/callback")
 
