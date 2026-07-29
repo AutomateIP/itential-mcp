@@ -283,12 +283,19 @@ class ServerConfig:
 class AuthConfig:
     """Authentication configuration for the MCP server.
 
-    Supports multiple authentication providers including JWT, OAuth, and OAuth Proxy.
+    Supports multiple authentication providers including JWT and OAuth Proxy.
+    The "oauth" type (full OAuth authorization server mode) is accepted here
+    for backward compatibility but always raises ConfigurationException at
+    startup -- dynamic client registration cannot be persisted without a
+    real storage backend. Use "oauth_proxy" for IdP-backed OAuth instead.
     """
 
     type: Literal["none", "jwt", "oauth", "oauth_proxy"] = _create_field_with_env(
         "ITENTIAL_MCP_SERVER_AUTH_TYPE",
-        "Authentication provider type used to secure the MCP server",
+        "Authentication provider type used to secure the MCP server. Note: "
+        "'oauth' (full authorization server mode) is not currently supported "
+        "and always raises ConfigurationException at startup; use "
+        "'oauth_proxy' instead.",
         default=defaults.ITENTIAL_MCP_SERVER_AUTH_TYPE,
         json_schema_extra={
             "x-itential-mcp-cli-enabled": True,

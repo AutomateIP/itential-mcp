@@ -109,75 +109,16 @@ class TestOAuthConfiguration:
 class TestOAuthProviderBuilding:
     """Test OAuth provider building logic."""
 
-    @patch("itential_mcp.server.auth.OAuthProvider")
-    def test_build_oauth_provider_success(self, mock_oauth_provider):
-        """Test successful OAuth provider building."""
-        from itential_mcp.config.converters import auth_to_dict
+    def test_build_oauth_provider_always_raises(self):
+        """Full OAuth authorization server mode is not currently supported.
 
-        auth_config = auth_to_dict(
-            make_auth_config(
-                type="oauth",
-                oauth_redirect_uri="http://localhost:8000/auth/callback",
-            )
-        )
-
-        mock_provider = MagicMock()
-        mock_oauth_provider.return_value = mock_provider
-
-        result = _build_oauth_provider(auth_config)
-
-        assert result == mock_provider
-        mock_oauth_provider.assert_called_once_with(base_url="http://localhost:8000")
-
-    @patch("itential_mcp.server.auth.OAuthProvider")
-    def test_build_oauth_provider_base_url_suffix_removal_only(
-        self, mock_oauth_provider
-    ):
-        """Test that base_url derivation only strips the literal suffix.
-
-        Regression test for a bug where ``str.rstrip("/auth/callback")`` was
-        used instead of ``str.removesuffix("/auth/callback")``. ``rstrip``
-        treats its argument as a set of characters to strip from the end of
-        the string, not a literal suffix, so a redirect URI whose host ends
-        in any of the characters in "/auth/callback" (e.g. "u" or "k" from a
-        ".uk" TLD) would have those trailing host characters incorrectly
-        eaten as well. Under the old ``rstrip`` behavior this would have
-        produced "https://auth-host.example." instead of the correct
-        "https://auth-host.example.uk".
+        ``_build_oauth_provider`` must fail fast with a clear
+        ``ConfigurationException`` explaining that dynamic client
+        registration cannot persist registered clients, and steering
+        users to ``oauth_proxy`` instead -- regardless of what fields are
+        present in the configuration. ``OAuthProvider`` must never be
+        constructed.
         """
-        from itential_mcp.config.converters import auth_to_dict
-
-        auth_config = auth_to_dict(
-            make_auth_config(
-                type="oauth",
-                oauth_redirect_uri="https://auth-host.example.uk/auth/callback",
-            )
-        )
-
-        mock_provider = MagicMock()
-        mock_oauth_provider.return_value = mock_provider
-
-        _build_oauth_provider(auth_config)
-
-        mock_oauth_provider.assert_called_once_with(
-            base_url="https://auth-host.example.uk"
-        )
-
-    def test_build_oauth_provider_missing_required_fields(self):
-        """Test OAuth provider building with missing required fields."""
-        from itential_mcp.config.converters import auth_to_dict
-
-        auth_config = auth_to_dict(make_auth_config(type="oauth"))
-
-        with pytest.raises(ConfigurationException) as exc_info:
-            _build_oauth_provider(auth_config)
-
-        assert "requires the following fields" in str(exc_info.value)
-        assert "redirect_uri" in str(exc_info.value)
-
-    @patch("itential_mcp.server.auth.OAuthProvider")
-    def test_build_oauth_provider_with_optional_fields(self, mock_oauth_provider):
-        """Test OAuth provider building with optional fields."""
         from itential_mcp.config.converters import auth_to_dict
 
         auth_config = auth_to_dict(
@@ -188,14 +129,28 @@ class TestOAuthProviderBuilding:
             )
         )
 
-        mock_provider = MagicMock()
-        mock_oauth_provider.return_value = mock_provider
+        with patch("itential_mcp.server.auth.OAuthProvider") as mock_oauth_provider:
+            with pytest.raises(ConfigurationException) as exc_info:
+                _build_oauth_provider(auth_config)
 
-        _build_oauth_provider(auth_config)
+            mock_oauth_provider.assert_not_called()
 
-        mock_oauth_provider.assert_called_once_with(
-            base_url="http://localhost:8000", required_scopes=["openid", "email"]
-        )
+        message = str(exc_info.value)
+        assert "not currently supported" in message
+        assert "oauth_proxy" in message
+
+    def test_build_oauth_provider_missing_required_fields_still_raises(self):
+        """Missing redirect_uri also raises the same unsupported-mode error."""
+        from itential_mcp.config.converters import auth_to_dict
+
+        auth_config = auth_to_dict(make_auth_config(type="oauth"))
+
+        with pytest.raises(ConfigurationException) as exc_info:
+            _build_oauth_provider(auth_config)
+
+        message = str(exc_info.value)
+        assert "not currently supported" in message
+        assert "oauth_proxy" in message
 
     @patch("itential_mcp.server.auth.OAuthProxy")
     @patch("itential_mcp.server.auth.JWTVerifier")
@@ -487,20 +442,20 @@ class TestFullAuthProviderFactory:
         provider = build_auth_provider(config)
         assert provider == mock_provider
 
-    @patch("itential_mcp.server.auth.OAuthProvider")
-    def test_oauth_auth_provider(self, mock_oauth_provider):
-        """Test building OAuth auth provider."""
+    def test_oauth_auth_provider_raises(self):
+        """Test that building type=oauth via the factory fails fast."""
         config = MagicMock(spec=Config)
         config.auth = AuthConfig(
             type="oauth",
             oauth_redirect_uri="http://localhost:8000/auth/callback",
         )
 
-        mock_provider = MagicMock()
-        mock_oauth_provider.return_value = mock_provider
+        with pytest.raises(ConfigurationException) as exc_info:
+            build_auth_provider(config)
 
-        provider = build_auth_provider(config)
-        assert provider == mock_provider
+        message = str(exc_info.value)
+        assert "not currently supported" in message
+        assert "oauth_proxy" in message
 
     @patch("itential_mcp.server.auth.OAuthProxy")
     @patch("itential_mcp.server.auth.JWTVerifier")

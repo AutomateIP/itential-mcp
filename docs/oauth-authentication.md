@@ -4,10 +4,10 @@ The Itential MCP server supports OAuth authentication to secure access to the se
 
 ## Overview
 
-The MCP server supports two OAuth authentication modes:
+The MCP server's `server.auth.type` setting recognizes two OAuth-related modes:
 
-1. **OAuth Provider** - Acts as a full OAuth authorization server
-2. **OAuth Proxy** - Proxies authentication to upstream OAuth providers (Google, Azure, Auth0, GitHub, Okta)
+1. **OAuth Provider** (`oauth`) - Intended to act as a full OAuth authorization server. **Not currently supported** -- see [OAuth Provider Mode](#oauth-provider-mode-not-currently-supported) below. Setting `auth_type` to `oauth` always raises `ConfigurationException` at startup.
+2. **OAuth Proxy** (`oauth_proxy`) - Proxies authentication to upstream OAuth providers (Google, Azure, Auth0, GitHub, Okta). This is the supported, working OAuth mode.
 
 Both modes require HTTP-based transports (`sse` or `http`) and are incompatible with the `stdio` transport.
 
@@ -19,7 +19,7 @@ OAuth authentication is configured through environment variables, command line a
 
 | Environment Variable | CLI Option | Description |
 |---------------------|------------|-------------|
-| `ITENTIAL_MCP_SERVER_AUTH_TYPE` | `--auth-type` | Set to `oauth` or `oauth_proxy` |
+| `ITENTIAL_MCP_SERVER_AUTH_TYPE` | `--auth-type` | Set to `oauth_proxy` (supported) or `jwt`. `oauth` is also a recognized value but is **not currently supported** -- it always raises `ConfigurationException` at startup; see [OAuth Provider Mode](#oauth-provider-mode-not-currently-supported) |
 | `ITENTIAL_MCP_SERVER_AUTH_OAUTH_CLIENT_ID` | `--auth-oauth-client-id` | OAuth client ID |
 | `ITENTIAL_MCP_SERVER_AUTH_OAUTH_CLIENT_SECRET` | `--auth-oauth-client-secret` | OAuth client secret |
 | `ITENTIAL_MCP_SERVER_AUTH_OAUTH_REDIRECT_URI` | `--auth-oauth-redirect-uri` | OAuth callback/redirect URI |
@@ -27,7 +27,7 @@ OAuth authentication is configured through environment variables, command line a
 
 ### OAuth Provider Settings
 
-For full OAuth server mode (`oauth`):
+> **Not currently supported.** Full OAuth server mode (`oauth`) always raises `ConfigurationException` at startup -- see [OAuth Provider Mode](#oauth-provider-mode-not-currently-supported). The settings below are documented only so that users encountering the exception understand what the (currently non-functional) mode would have configured. Use [OAuth Proxy Mode](#oauth-proxy-mode) instead.
 
 | Environment Variable | CLI Option | Description |
 |---------------------|------------|-------------|
@@ -46,41 +46,15 @@ For OAuth proxy mode (`oauth_proxy`):
 | `ITENTIAL_MCP_SERVER_AUTH_JWKS_URI` | `--auth-jwks-uri` | **Required** (one of `jwks_uri` or `public_key`) - JWKS endpoint for verifying upstream tokens |
 | `ITENTIAL_MCP_SERVER_AUTH_PUBLIC_KEY` | `--auth-public-key` | **Required** (one of `jwks_uri` or `public_key`) - Static public key/secret for verifying upstream tokens |
 
-## OAuth Provider Mode
+## OAuth Provider Mode (Not Currently Supported)
 
-The OAuth provider mode turns the MCP server into a full OAuth authorization server. This is useful when you want the MCP server to handle authentication directly.
+**`auth_type = oauth` (full OAuth authorization server mode) is not currently supported.** Setting `ITENTIAL_MCP_SERVER_AUTH_TYPE` (or `--auth-type`) to `oauth` always raises `ConfigurationException` at server startup.
 
-### Configuration
+The underlying `OAuthProvider` construction has no persistent storage backend for dynamically registered OAuth clients: a client can successfully `POST /register`, but the registration is never retrievable afterward, so every real authorization-code handshake fails. There is no built-in storage subclass suitable for production use (the only one available is explicitly testing-only and issues fake, unverified tokens), so rather than accept configuration that silently produces a confusing runtime failure during a real handshake, the server now fails fast at startup with a clear error.
 
-**Environment Variables:**
-```bash
-export ITENTIAL_MCP_SERVER_AUTH_TYPE="oauth"
-export ITENTIAL_MCP_SERVER_AUTH_OAUTH_REDIRECT_URI="http://localhost:8000/auth/callback"
-export ITENTIAL_MCP_SERVER_AUTH_OAUTH_SCOPES="openid email profile"
-```
+**If you need OAuth authentication today, use [OAuth Proxy Mode](#oauth-proxy-mode) instead**, which delegates authentication to a real upstream identity provider (Google, Azure, Auth0, GitHub, Okta, or a generic provider) and is fully supported.
 
-**Command Line:**
-```bash
-itential-mcp --transport sse \
-  --auth-type oauth \
-  --auth-oauth-redirect-uri "http://localhost:8000/auth/callback" \
-  --auth-oauth-scopes "openid email profile"
-```
-
-**Configuration File:**
-```ini
-[server]
-auth_type = oauth
-auth_oauth_redirect_uri = http://localhost:8000/auth/callback
-auth_oauth_scopes = openid email profile
-```
-
-### Base URL Derivation
-
-The OAuth provider automatically derives the base URL from the redirect URI by removing the `/auth/callback` suffix:
-
-- **Redirect URI:** `http://localhost:8000/auth/callback`
-- **Base URL:** `http://localhost:8000`
+Implementing real client/token storage for full OAuth provider mode is tracked as a future roadmap item.
 
 ## OAuth Proxy Mode
 
@@ -216,11 +190,11 @@ OAuth authentication modes have specific transport requirements:
 
 | Auth Type | stdio | sse | http |
 |-----------|-------|-----|------|
-| `oauth` | ❌ | ✅ | ✅ |
+| `oauth` (not currently supported) | ❌ | ❌ | ❌ |
 | `oauth_proxy` | ❌ | ✅ | ✅ |
 | `jwt` | ✅ | ✅ | ✅ |
 
-OAuth requires HTTP-based transports because it needs to handle redirect URLs and callback endpoints.
+OAuth requires HTTP-based transports because it needs to handle redirect URLs and callback endpoints. `oauth` is listed here for completeness only -- it always raises `ConfigurationException` at startup regardless of transport; see [OAuth Provider Mode](#oauth-provider-mode-not-currently-supported).
 
 ## Complete Examples
 
@@ -240,30 +214,6 @@ export ITENTIAL_MCP_SERVER_AUTH_JWKS_URI="https://www.googleapis.com/oauth2/v3/c
 
 # Start the server
 itential-mcp --transport sse --host 0.0.0.0 --port 8000
-```
-
-### OAuth Provider Mode with Configuration File
-
-**config.ini:**
-```ini
-[server]
-transport = sse
-host = 0.0.0.0
-port = 8000
-auth_type = oauth
-auth_oauth_redirect_uri = http://localhost:8000/auth/callback
-auth_oauth_scopes = openid email profile
-
-[platform]
-host = platform.example.com
-user = admin
-password = admin
-```
-
-**Start the server:**
-```bash
-export ITENTIAL_MCP_CONFIG="config.ini"
-itential-mcp
 ```
 
 ### Azure AD with Custom Scopes
@@ -294,6 +244,12 @@ itential-mcp --transport sse --host 0.0.0.0 --port 8000
 ## Troubleshooting
 
 ### Common Configuration Errors
+
+**`auth_type = oauth` is not supported:**
+```
+ConfigurationException: Full OAuth authorization server mode ('oauth') is not currently supported (dynamic client registration cannot persist registered clients). Use 'oauth_proxy' to delegate authentication to an upstream OAuth provider instead.
+```
+If you see this error, you set `ITENTIAL_MCP_SERVER_AUTH_TYPE` (or `--auth-type`) to `oauth`. This mode always fails at startup -- see [OAuth Provider Mode](#oauth-provider-mode-not-currently-supported). Switch to `oauth_proxy` and configure an upstream identity provider as shown in [OAuth Proxy Mode](#oauth-proxy-mode).
 
 **Missing required fields:**
 ```

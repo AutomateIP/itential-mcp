@@ -569,7 +569,7 @@ export ITENTIAL_MCP_SERVER_AUTH_OAUTH_REDIRECT_URI=http://localhost:8000/auth/ca
 ```bash
 # OAuth requires HTTP-based transport
 export ITENTIAL_MCP_SERVER_TRANSPORT=sse  # or http
-export ITENTIAL_MCP_SERVER_AUTH_TYPE=oauth
+export ITENTIAL_MCP_SERVER_AUTH_TYPE=oauth_proxy
 
 # stdio transport should use no auth
 export ITENTIAL_MCP_SERVER_TRANSPORT=stdio
