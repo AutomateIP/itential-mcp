@@ -116,7 +116,11 @@ async def add_devices_to_group(
     get_device_groups tool.
 
     The devices argument provides the list of devices to be added to the
-    named device group.
+    named device group.  This operation is additive and idempotent: it
+    merges the supplied devices into the group's existing device list
+    rather than replacing it, and devices already present in the group are
+    not duplicated.  Passing an empty list or None is a no-op that leaves
+    the group's devices unchanged.
 
     Args:
         ctx (Context): The FastMCP Context object

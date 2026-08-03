@@ -2,6 +2,8 @@
 # GNU General Public License v3.0+ (see LICENSE or https://www.gnu.org/licenses/gpl-3.0.txt)
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+from __future__ import annotations
+
 import ipsdk
 
 from ipsdk.http import HTTPMethod
@@ -403,17 +405,24 @@ class Service(ServiceBase):
         """
         Add one or more devices to an existing device group.
 
-        This method adds a list of devices to the specified device group.
-        The method first retrieves the device group ID by name, then updates
-        the group to include the new devices. The devices list replaces any
-        existing devices in the group.
+        This method merges the supplied devices into the specified device
+        group's existing device list. The method first retrieves the device
+        group's current devices, then computes the union of the existing
+        devices and the supplied devices, preserving order and removing
+        duplicates (both against devices already in the group and within
+        the caller's own supplied list). Devices already present in the
+        group are not duplicated. Passing an empty list or None is a no-op
+        that leaves the group unchanged.
 
         Args:
             name (str): Name of the device group to add devices to
             devices (list): List of device names to add to the group
 
         Returns:
-            dict: Operation result containing status and details of the update
+            dict: Operation result containing status and details of the
+                update. If the merged device list is unchanged from the
+                group's existing devices, no update is performed and a
+                synthetic no-op success result is returned instead.
 
         Raises:
             NotFoundError: If the specified device group name cannot be found
@@ -421,14 +430,40 @@ class Service(ServiceBase):
         """
         device_group = await self.describe_device_group(name)
         device_group_id = device_group["id"]
+        existing = device_group.get("devices", [])
 
-        body = {"details": {"devices": devices}}
+        merged = self._dedup_preserve_order(list(existing) + list(devices or []))
+
+        if merged == list(existing):
+            return {"status": "success", "message": "no new devices to add"}
+
+        body = {"details": {"devices": merged}}
 
         res = await self.client.put(
             f"/configuration_manager/deviceGroups/{device_group_id}", json=body
         )
 
         return res.json()
+
+    @staticmethod
+    def _dedup_preserve_order(items: list[str]) -> list[str]:
+        """
+        Deduplicate a list of strings while preserving first-seen order.
+
+        Args:
+            items (list[str]): List of strings that may contain duplicates
+
+        Returns:
+            list[str]: A new list containing only the first occurrence of
+                each item, in the order it was first seen
+        """
+        seen = set()
+        result = []
+        for item in items:
+            if item not in seen:
+                seen.add(item)
+                result.append(item)
+        return result
 
     async def remove_devices_from_group(self, name: str, devices: list) -> dict:
         """
@@ -455,7 +490,7 @@ class Service(ServiceBase):
         device_group_id = data["id"]
 
         remaining_devices = []
-        for device in data["devices"]:
+        for device in data.get("devices", []):
             if device not in devices:
                 remaining_devices.append(device)
 
