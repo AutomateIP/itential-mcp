@@ -56,6 +56,37 @@ class TestCommandTemplate:
                 # Missing required _id field
             )
 
+    def test_command_template_missing_namespace_global(self):
+        """Test CommandTemplate defaults namespace to None when the key is
+        absent entirely, as returned by the platform for global (non
+        project-scoped) command templates.
+        """
+        payload = {
+            "_id": "linux-curl-http",
+            "name": "linux-curl-http",
+            "description": "Global command template",
+            "passRule": True,
+        }
+
+        template = models.CommandTemplate(**payload)
+
+        assert template.namespace is None
+
+    def test_command_template_missing_description(self):
+        """Test CommandTemplate defaults description to None when the key
+        is absent entirely from the platform response.
+        """
+        payload = {
+            "_id": "linux-curl-http",
+            "name": "linux-curl-http",
+            "namespace": None,
+            "passRule": True,
+        }
+
+        template = models.CommandTemplate(**payload)
+
+        assert template.description is None
+
 
 class TestGetCommandTemplatesResponse:
     """Tests for GetCommandTemplatesResponse model."""
@@ -145,6 +176,23 @@ class TestCommandTemplateDetail:
         )
 
         assert detail.commands == []
+
+    def test_command_template_detail_missing_namespace_global(self):
+        """Test CommandTemplateDetail defaults namespace to None when the
+        key is absent entirely, reproducing the "Field required" error
+        raised by describe_command_template against global (non
+        project-scoped) command templates before this fix.
+        """
+        payload = {
+            "_id": "linux-curl-http",
+            "name": "linux-curl-http",
+            "commands": [],
+            "passRule": True,
+        }
+
+        detail = models.CommandTemplateDetail(**payload)
+
+        assert detail.namespace is None
 
 
 class TestDescribeCommandTemplateResponse:
