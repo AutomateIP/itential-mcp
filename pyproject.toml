@@ -49,7 +49,7 @@ Documentation = "https://github.com/itential/itential-mcp"
 itential-mcp = "itential_mcp.app:run"
 
 [tool.uv]
-constraint-dependencies = ["cryptography>=46.0.7,<47", "mcp>=1.28.1,<2"]
+constraint-dependencies = ["cryptography>=46.0.7,<47", "mcp>=1.28.1,<2", "pydantic-settings>=2.14.2"]
 
 [build-system]
 requires = ["hatchling", "uv-dynamic-versioning>=0.7.0"]
