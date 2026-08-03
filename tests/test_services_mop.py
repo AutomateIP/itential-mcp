@@ -461,7 +461,7 @@ class TestMOPService:
 
         # Mock existing template lookup
         existing_template = {
-            "_id": "test_template",
+            "_id": "66f0a1b2c3d4e5f6a7b8c9d0",
             "name": "test_template",
             "created": 1757610875214,
             "createdBy": "test@example.com",
@@ -477,21 +477,21 @@ class TestMOPService:
             "matchedCount": 1,
         }
 
-        mock_put_response = MagicMock()
-        mock_put_response.json.return_value = expected_response
+        mock_post_response = MagicMock()
+        mock_post_response.json.return_value = expected_response
 
         mock_client.get.return_value = mock_get_response
-        mock_client.put.return_value = mock_put_response
+        mock_client.post.return_value = mock_post_response
 
         result = await mop_service.update_command_template(
             name="test_template", commands=commands, description="Updated template"
         )
 
         assert result == expected_response
-        mock_client.put.assert_called_once()
-        call_args = mock_client.put.call_args
-        assert call_args[0][0] == "/mop/updateTemplate/test_template"
-        assert call_args[1]["json"]["mop"]["_id"] == "test_template"
+        mock_client.post.assert_called_once()
+        call_args = mock_client.post.call_args
+        assert call_args[0][0] == "/mop/updateTemplate/66f0a1b2c3d4e5f6a7b8c9d0"
+        assert call_args[1]["json"]["mop"]["_id"] == "66f0a1b2c3d4e5f6a7b8c9d0"
         assert call_args[1]["json"]["mop"]["commands"] == commands
         assert call_args[1]["json"]["mop"]["description"] == "Updated template"
 
@@ -516,7 +516,7 @@ class TestMOPService:
 
         # Mock existing template lookup with project-scoped name (for describe_command_template)
         existing_template = {
-            "_id": "test_template",
+            "_id": "7a1b2c3d4e5f6a7b8c9d0e1f",
             "name": "@project-123: test_template",
             "created": 1757610875214,
             "createdBy": "test@example.com",
@@ -528,8 +528,8 @@ class TestMOPService:
             "acknowledged": True,
             "modifiedCount": 1,
         }
-        mock_put_response = MagicMock()
-        mock_put_response.json.return_value = expected_response
+        mock_post_response = MagicMock()
+        mock_post_response.json.return_value = expected_response
 
         # Set up side effects for multiple GET calls:
         # 1. Get project ID by name (in update_command_template)
@@ -540,16 +540,18 @@ class TestMOPService:
             mock_projects_response,
             mock_get_template_response,
         ]
-        mock_client.put.return_value = mock_put_response
+        mock_client.post.return_value = mock_post_response
 
         result = await mop_service.update_command_template(
             name="test_template", commands=commands, project="Test Project"
         )
 
         assert result == expected_response
-        # Verify PUT was called with project-scoped name
-        call_args = mock_client.put.call_args
-        assert "@project-123: test_template" in call_args[0][0]
+        # Verify POST was called with the template's _id, not the project-scoped name
+        mock_client.post.assert_called_once()
+        call_args = mock_client.post.call_args
+        assert call_args[0][0] == "/mop/updateTemplate/7a1b2c3d4e5f6a7b8c9d0e1f"
+        assert "@project-123: test_template" not in call_args[0][0]
 
     @pytest.mark.asyncio
     async def test_update_command_template_not_found(self, mop_service, mock_client):
