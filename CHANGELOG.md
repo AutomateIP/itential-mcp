@@ -7,6 +7,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.2] - 2026-08-03
+
+### Security
+- Bump fastmcp to >=3.4.1,<4, floors transitive starlette to 1.3.1 and
+  resolves 5 starlette CVEs (including CVE-2026-48710) that have no patched
+  release in the starlette 0.x line; individually live-integration-tested
+  against SSE and HTTP transports before merge given the elevated risk of a
+  transitive ASGI/transport-layer major bump (#369)
+- Constrain mcp SDK to >=1.28.1,<2, resolving 3 high-severity mcp SDK
+  advisories while staying below the same-day 2.0.0 major redesign;
+  individually live-integration-tested against OAuth/JWT auth flows via a
+  local mock IdP and live platform tool calls before merge given the same
+  transport-layer risk profile as #369 (#371)
+
+### Fixed
+- Surface CLI tool errors by default and include the response body, instead
+  of silently exiting 1 with empty stdout/stderr unless
+  `ITENTIAL_MCP_DEBUG` was set (#372)
+- Replace broken `StaticTokenVerifier` fallback with `JWTVerifier` in
+  `oauth_proxy`, fixing a `TypeError` crash at server startup (#373)
+- Fail fast with a clear `ConfigurationException` on `auth_type=oauth` (full
+  OAuth authorization server mode) instead of silently accepting config that
+  produces a confusing "Client ID not found" failure during a real
+  authorization-code handshake; documentation corrected to stop presenting
+  this mode as supported (#374)
+- Allow null `description`, `package`, and `version` fields in
+  `get_applications` response payloads (#375)
+- Add missing defaults for nullable command template fields on
+  `CommandTemplateDetail`/`CommandTemplate` (#376)
+- Normalize case of the `status` field in `create_integration_model`
+  responses to accept the platform's actual `"Created"` casing (#377)
+- Declare the `devices` parameter as `list[str]` (was an untyped bare list)
+  in device group and command template tools (#378)
+- Raise a clear exception instead of an unhandled `IndexError` in
+  `run_compliance_plan` when a compliance plan's run history is empty (#379)
+- Use the correct HTTP method and path for `update_command_template`, which
+  previously 404'd on every real call (#380)
+
+### Note
+- The two dependency bumps above (#369, #371) touch the ASGI/transport layer
+  and carry more inherent risk than the rest of this release; each was
+  individually live-integration-tested (SSE/HTTP transports, OAuth/JWT auth
+  flows via a local mock IdP, live platform tool calls) before merge, per
+  this release's process.
+- The cryptography advisory noted as open in 0.13.1 (GHSA-537c-gmf6-5ccf,
+  patched floor 48.0.1) remains open in this release; still deliberately
+  held at the 46.x line pending evaluation of 47.x/48.x breaking API
+  changes.
+
 ## [0.13.1] - 2026-07-24
 
 ### Security
