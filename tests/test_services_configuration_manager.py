@@ -1951,13 +1951,59 @@ class TestConfigurationManagerCompliancePlans:
 
     @pytest.mark.asyncio
     async def test_run_compliance_plan_empty_plans_list(self, service):
-        """Test run_compliance_plan with no available plans."""
+        """Test run_compliance_plan when get_compliance_plans returns no plans.
+
+        This covers the "plan not found" case: there are no compliance plans
+        at all, so no match is found for the requested name and a ValueError
+        is raised before any run/search API calls are made. This is distinct
+        from test_run_compliance_plan_empty_instances_raises below, where the
+        plan IS found and its run request succeeds, but the resulting
+        instance search returns an empty list.
+        """
         service.get_compliance_plans = AsyncMock(return_value=[])
 
         with pytest.raises(ValueError, match="compliance plan Any Plan not found"):
             await service.run_compliance_plan("Any Plan")
 
         service.get_compliance_plans.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_run_compliance_plan_empty_instances_raises(
+        self, service, mock_client
+    ):
+        """Test run_compliance_plan raises ComplianceException with no instances.
+
+        Reproduces the reported bug: the compliance plan exists and its run
+        request succeeds, but the plan has no devices or checks configured,
+        so the subsequent instance search returns an empty "plans" list. This
+        must raise a clear ComplianceException instead of an unguarded
+        IndexError.
+        """
+        plans_data = [
+            {
+                "id": "plan-1",
+                "name": "Probe",
+                "description": "No devices configured",
+                "throttle": 5,
+            }
+        ]
+        service.get_compliance_plans = AsyncMock(return_value=plans_data)
+
+        mock_run_response = Mock()
+        mock_run_response.json.return_value = {"status": "started"}
+
+        mock_search_response = Mock()
+        mock_search_response.json.return_value = {"plans": []}
+
+        mock_client.post.side_effect = [mock_run_response, mock_search_response]
+
+        with pytest.raises(
+            exceptions.ComplianceException, match="no devices or checks"
+        ):
+            await service.run_compliance_plan("Probe")
+
+        service.get_compliance_plans.assert_called_once()
+        assert mock_client.post.call_count == 2
 
     @pytest.mark.asyncio
     async def test_run_compliance_plan_case_sensitive(self, service):

@@ -736,6 +736,9 @@ class Service(ServiceBase):
 
         Raises:
             ValueError: If the specified compliance plan name is not found
+            ComplianceException: If the compliance plan run produces no
+                instance, which typically indicates the plan has no devices
+                or checks configured
         """
         plans_list = await self.get_compliance_plans()
 
@@ -767,4 +770,11 @@ class Service(ServiceBase):
 
         json_data = res.json()
 
-        return json_data["plans"][0]
+        instances = json_data["plans"]
+        if not instances:
+            raise exceptions.ComplianceException(
+                f"compliance plan '{name}' produced no instance to run; "
+                f"it likely has no devices or checks configured"
+            )
+
+        return instances[0]
