@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, MagicMock
 from fastmcp import Context
 from fastmcp.tools import Tool
 
+from itential_mcp.core import exceptions
 from itential_mcp.tools import device_groups
 from itential_mcp.models.device_groups import (
     DeviceGroupElement,
@@ -465,6 +466,21 @@ class TestAddDevicesToGroup:
 
         mock_context.debug.assert_called_once_with("inside add_devices_to_group(...)")
 
+    @pytest.mark.asyncio
+    async def test_add_devices_to_group_not_found_propagates(self, mock_context):
+        """Test add_devices_to_group propagates NotFoundError from the
+        underlying service unchanged when the device group does not exist."""
+        mock_client = mock_context.request_context.lifespan_context.get.return_value
+        mock_client.configuration_manager = MagicMock()
+        mock_client.configuration_manager.add_devices_to_group = AsyncMock(
+            side_effect=exceptions.NotFoundError("device group 'Ghost' not found")
+        )
+
+        with pytest.raises(exceptions.NotFoundError, match="Ghost"):
+            await device_groups.add_devices_to_group(
+                mock_context, name="Ghost", devices=["device1"]
+            )
+
 
 class TestRemoveDevicesFromGroup:
     """Test the remove_devices_from_group tool function"""
@@ -637,6 +653,21 @@ class TestRemoveDevicesFromGroup:
         mock_context.debug.assert_called_once_with(
             "inside remove_devices_from_group(...)"
         )
+
+    @pytest.mark.asyncio
+    async def test_remove_devices_from_group_not_found_propagates(self, mock_context):
+        """Test remove_devices_from_group propagates NotFoundError from the
+        underlying service unchanged when the device group does not exist."""
+        mock_client = mock_context.request_context.lifespan_context.get.return_value
+        mock_client.configuration_manager = MagicMock()
+        mock_client.configuration_manager.remove_devices_from_group = AsyncMock(
+            side_effect=exceptions.NotFoundError("device group 'Ghost' not found")
+        )
+
+        with pytest.raises(exceptions.NotFoundError, match="Ghost"):
+            await device_groups.remove_devices_from_group(
+                mock_context, name="Ghost", devices=["device1"]
+            )
 
 
 class TestToolsIntegration:

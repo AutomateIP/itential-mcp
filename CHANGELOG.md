@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Merge supplied devices into a device group's existing device list instead
+  of replacing it, which previously caused `add_devices_to_group` to silently
+  delete every device not included in the current call (#383)
+- Raise `NotFoundError` instead of an unhandled `TypeError` from
+  `add_devices_to_group`/`remove_devices_from_group` when the target device
+  group name does not exist (#384)
+
 ## [0.13.2] - 2026-08-03
 
 ### Security
