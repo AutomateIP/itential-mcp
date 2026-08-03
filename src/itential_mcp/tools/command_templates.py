@@ -91,7 +91,7 @@ async def run_command_template(
     ctx: Annotated[Context, Field(description="The FastMCP Context object")],
     name: Annotated[str, Field(description="The name of the command template to run")],
     devices: Annotated[
-        list,
+        list[str],
         Field(description="The list of devices to run the command template against"),
     ],
     project: Annotated[
@@ -111,7 +111,7 @@ async def run_command_template(
     Args:
         ctx (Context): The FastMCP Context object
         name (str): Name of the command template to run
-        devices (list): List of device names to run the template against. Use `get_devices` to see available devices.
+        devices (list[str]): List of device names to run the template against. Use `get_devices` to see available devices.
         project (str | None): Project containing the template (None for global templates)
 
     Returns:

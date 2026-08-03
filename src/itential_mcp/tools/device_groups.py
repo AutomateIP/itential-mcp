@@ -56,7 +56,7 @@ async def create_device_group(
         Field(description="Short description of the device group", default=None),
     ],
     devices: Annotated[
-        list | None,
+        list[str] | None,
         Field(description="List of devices to add to the group", default=None),
     ],
 ) -> models.CreateDeviceGroupResponse:
@@ -70,7 +70,7 @@ async def create_device_group(
         ctx (Context): The FastMCP Context object
         name (str): Name of the device group to create
         description (str | None): Short description of the device group (optional)
-        devices (list | None): List of device names to include in the group. Use `get_devices` to see available devices. (optional)
+        devices (list[str] | None): List of device names to include in the group. Use `get_devices` to see available devices. (optional)
 
     Returns:
         CreateDeviceGroupResponse: Creation operation result with the following fields:
@@ -99,7 +99,7 @@ async def add_devices_to_group(
         str, Field(description="The name of the device group to add devices to")
     ],
     devices: Annotated[
-        list | None,
+        list[str] | None,
         Field(
             description="List of devices to add to the group",
         ),
@@ -122,7 +122,7 @@ async def add_devices_to_group(
 
         name (str): The name of the device group to add devices too
 
-        devices (list[str]): The list of device names to add to the
+        devices (list[str] | None): The list of device names to add to the
             device group
 
     Returns:
