@@ -8,6 +8,8 @@ from unittest.mock import AsyncMock, Mock
 import httpx
 import ipsdk
 
+from ipsdk.http import HTTPMethod
+
 from itential_mcp.core import exceptions
 from itential_mcp.platform.services.configuration_manager import Service
 from itential_mcp.platform.services import ServiceBase
@@ -790,10 +792,13 @@ class TestConfigurationManagerDeviceGroups:
         result = await service.describe_device_group("Production Routers")
 
         mock_client._send_request.assert_called_once_with(
-            "GET",
+            HTTPMethod.GET,
             "/configuration_manager/name/devicegroups",
             json={"groupName": "Production Routers"},
         )
+        called_method = mock_client._send_request.call_args[0][0]
+        assert isinstance(called_method, HTTPMethod)
+        assert called_method == HTTPMethod.GET
         assert result == expected_data
 
     @pytest.mark.asyncio
@@ -813,7 +818,7 @@ class TestConfigurationManagerDeviceGroups:
         result = await service.describe_device_group("Empty Group")
 
         mock_client._send_request.assert_called_once_with(
-            "GET",
+            HTTPMethod.GET,
             "/configuration_manager/name/devicegroups",
             json={"groupName": "Empty Group"},
         )
