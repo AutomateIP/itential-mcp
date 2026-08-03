@@ -31,35 +31,41 @@ class GetApplicationsElement(BaseModel):
     ]
 
     package: Annotated[
-        str,
+        str | None,
         Field(
             description=inspect.cleandoc(
                 """
-                The NodeJS package name for the application
+                The NodeJS package name for the application. May be null
+                on some platform versions.
                 """
-            )
+            ),
+            default=None,
         ),
     ]
 
     version: Annotated[
-        str,
+        str | None,
         Field(
             description=inspect.cleandoc(
                 """
-                The application version
+                The application version. May be null on some platform
+                versions.
                 """
-            )
+            ),
+            default=None,
         ),
     ]
 
     description: Annotated[
-        str,
+        str | None,
         Field(
             description=inspect.cleandoc(
                 """
-                Short description of the application
+                Short description of the application. May be null on
+                some platform versions.
                 """
-            )
+            ),
+            default=None,
         ),
     ]
 
