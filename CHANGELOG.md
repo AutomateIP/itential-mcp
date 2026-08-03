@@ -18,6 +18,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   previously caused Pydantic to silently drop it from
   `describe_command_template`'s response even when the platform returned one
   (#385)
+- Paginate `get_integration_models` using the existing `_paginate` helper
+  (already used by `get_integrations`) instead of a single unpaginated
+  request, which previously silently truncated results to the platform's
+  default page size of 25 and made `create_integration_model`'s
+  duplicate-check unreliable (#386)
 
 ## [0.13.2] - 2026-08-03
 
