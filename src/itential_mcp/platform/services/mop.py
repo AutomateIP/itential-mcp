@@ -310,5 +310,7 @@ class Service(ServiceBase):
         if description is not None:
             body["mop"]["description"] = description
 
-        res = await self.client.put(f"/mop/updateTemplate/{template_name}", json=body)
+        res = await self.client.post(
+            f"/mop/updateTemplate/{existing_template['_id']}", json=body
+        )
         return res.json()
