@@ -4,6 +4,8 @@
 
 import ipsdk
 
+from ipsdk.http import HTTPMethod
+
 from itential_mcp.core import exceptions
 
 from itential_mcp.platform.services import ServiceBase
@@ -324,7 +326,9 @@ class Service(ServiceBase):
             ServerException: If there is an error communicating with the server
         """
         res = await self.client._send_request(
-            "GET", "/configuration_manager/name/devicegroups", json={"groupName": name}
+            HTTPMethod.GET,
+            "/configuration_manager/name/devicegroups",
+            json={"groupName": name},
         )
         return res.json()
 

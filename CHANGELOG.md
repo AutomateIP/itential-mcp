@@ -49,6 +49,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   tools to still fail with a stringified-array validation error even after
   the item-type fix above, since the parameter's JSON schema incorrectly
   marked it as required
+- Fix `add_devices_to_group` and `remove_devices_from_group` failing with
+  `method must be of type \`HTTPMethod\`` -- `describe_device_group` (called
+  internally by both tools) passed a raw string instead of the required
+  `HTTPMethod` enum to the underlying platform client
 
 ### Note
 - The two dependency bumps above (#369, #371) touch the ASGI/transport layer
