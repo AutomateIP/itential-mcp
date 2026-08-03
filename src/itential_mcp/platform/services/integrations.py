@@ -74,8 +74,12 @@ class Service(ServiceBase):
             ConnectionException: If there is an error connecting to the platform
             AuthenticationException: If authentication credentials are invalid
         """
-        res = await self.client.get("/integration-models")
-        return res.json()
+        results = await self._paginate(
+            "/integration-models",
+            data_key="integrationModels",
+            total_key="total",
+        )
+        return {"integrationModels": results}
 
     async def create_integration_model(self, model: dict) -> dict:
         """

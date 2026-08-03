@@ -40,38 +40,86 @@ class TestService:
     @pytest.mark.asyncio
     async def test_get_integration_models_success(self, service, mock_client):
         """Test successful retrieval of integration models."""
-        expected_response = {
-            "integrationModels": [
-                {
-                    "versionId": "test-model:1.0.0",
-                    "properties": {"version": "1.0.0"},
-                    "description": "Test model",
-                }
-            ]
-        }
+        models = [
+            {
+                "versionId": "test-model:1.0.0",
+                "properties": {"version": "1.0.0"},
+                "description": "Test model",
+            }
+        ]
+        api_response = {"integrationModels": models, "total": len(models)}
 
         mock_response = Mock(spec=Response)
-        mock_response.json.return_value = expected_response
+        mock_response.json.return_value = api_response
         mock_client.get.return_value = mock_response
 
         result = await service.get_integration_models()
 
-        mock_client.get.assert_called_once_with("/integration-models")
-        assert result == expected_response
+        mock_client.get.assert_called_once_with(
+            "/integration-models", params={"limit": 100, "skip": 0}
+        )
+        assert result == {"integrationModels": models}
 
     @pytest.mark.asyncio
     async def test_get_integration_models_empty_response(self, service, mock_client):
         """Test get_integration_models with empty response."""
-        expected_response = {"integrationModels": []}
+        api_response = {"integrationModels": [], "total": 0}
 
         mock_response = Mock(spec=Response)
-        mock_response.json.return_value = expected_response
+        mock_response.json.return_value = api_response
         mock_client.get.return_value = mock_response
 
         result = await service.get_integration_models()
 
-        mock_client.get.assert_called_once_with("/integration-models")
-        assert result == expected_response
+        mock_client.get.assert_called_once_with(
+            "/integration-models", params={"limit": 100, "skip": 0}
+        )
+        assert result == {"integrationModels": []}
+
+    @pytest.mark.asyncio
+    async def test_get_integration_models_pagination(self):
+        """Test get_integration_models paginates across multiple pages."""
+        fresh_mock_client = Mock()
+        fresh_mock_client.get = AsyncMock()
+        fresh_service = Service(fresh_mock_client)
+
+        first_page_models = [
+            {"versionId": f"model-{i}:1.0.0", "properties": {"version": "1.0.0"}}
+            for i in range(100)
+        ]
+        second_page_models = [
+            {"versionId": f"model-{i}:1.0.0", "properties": {"version": "1.0.0"}}
+            for i in range(100, 128)
+        ]
+
+        first_response = {
+            "integrationModels": first_page_models,
+            "total": 128,
+        }
+        second_response = {
+            "integrationModels": second_page_models,
+            "total": 128,
+        }
+
+        mock_response_1 = Mock(spec=Response)
+        mock_response_1.json.return_value = first_response
+
+        mock_response_2 = Mock(spec=Response)
+        mock_response_2.json.return_value = second_response
+
+        fresh_mock_client.get.side_effect = [mock_response_1, mock_response_2]
+
+        result = await fresh_service.get_integration_models()
+
+        assert fresh_mock_client.get.call_count == 2
+
+        calls = fresh_mock_client.get.call_args_list
+        for call in calls:
+            assert call[0][0] == "/integration-models"
+            assert "params" in call[1]
+            assert call[1]["params"]["limit"] == 100
+
+        assert result == {"integrationModels": first_page_models + second_page_models}
 
     @pytest.mark.asyncio
     async def test_create_integration_model_success(self, service, mock_client):
@@ -107,7 +155,9 @@ class TestService:
         result = await service.create_integration_model(model)
 
         # Verify all calls were made
-        mock_client.get.assert_called_once_with("/integration-models")
+        mock_client.get.assert_called_once_with(
+            "/integration-models", params={"limit": 100, "skip": 0}
+        )
         mock_client.put.assert_called_once_with(
             "/integration-models/validation", json={"model": model}
         )
@@ -140,7 +190,9 @@ class TestService:
             await service.create_integration_model(model)
 
         assert "model existing-api:1.0.0 already exists" in str(exc_info.value)
-        mock_client.get.assert_called_once_with("/integration-models")
+        mock_client.get.assert_called_once_with(
+            "/integration-models", params={"limit": 100, "skip": 0}
+        )
         # Validation and creation should not be called
         mock_client.put.assert_not_called()
         mock_client.post.assert_not_called()
@@ -189,7 +241,9 @@ class TestService:
         result = await service.create_integration_model(model)
 
         # Verify all calls were made
-        mock_client.get.assert_called_once_with("/integration-models")
+        mock_client.get.assert_called_once_with(
+            "/integration-models", params={"limit": 100, "skip": 0}
+        )
         mock_client.put.assert_called_once_with(
             "/integration-models/validation", json={"model": model}
         )
