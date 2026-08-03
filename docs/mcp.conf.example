@@ -127,6 +127,12 @@
 # This setting controls which authentication method the server will use to
 # validate client requests.  Valid values are: none, jwt, oauth, oauth_proxy.
 #
+# NOTE: "oauth" (full OAuth authorization server mode) is not currently
+# supported -- it always raises a ConfigurationException at startup because
+# dynamic client registration cannot be persisted without a real storage
+# backend. Use "oauth_proxy" for IdP-backed OAuth (Google, Azure, Auth0,
+# GitHub, Okta, or a generic provider) instead.
+#
 # Default value: none
 # Environment variable: ITENTIAL_MCP_SERVER_AUTH_TYPE
 #

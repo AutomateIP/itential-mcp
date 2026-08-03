@@ -119,41 +119,34 @@ def _build_jwt_provider(auth_config: dict[str, Any]) -> AuthProvider:
 
 
 def _build_oauth_provider(auth_config: dict[str, Any]) -> AuthProvider:
-    """Build a full OAuth 2.0 authorization server.
+    """Reject full OAuth 2.0 authorization server configuration.
+
+    Full authorization server mode (``type=oauth``) is not currently
+    supported: FastMCP's ``OAuthProvider`` has no built-in persistent
+    storage backend, so dynamic client registration silently fails to
+    persist registered clients. This results in a confusing runtime
+    failure ("Client ID not found") during a real authorization-code
+    handshake, well after startup. Implementing a real fix requires new
+    client/token storage and credential-verification capability, which is
+    tracked separately. Until then, this configuration fails fast at
+    startup instead.
 
     Args:
         auth_config (dict[str, Any]): Authentication configuration dictionary.
 
     Returns:
-        AuthProvider: Configured OAuth authorization server provider.
+        AuthProvider: Never returns; always raises.
 
     Raises:
-        ConfigurationException: If OAuth provider initialization fails.
+        ConfigurationException: Always raised. Full OAuth authorization
+            server mode is not currently supported.
     """
-    if not auth_config.get("redirect_uri"):
-        raise ConfigurationException(
-            "OAuth server requires the following fields: redirect_uri"
-        )
-
-    oauth_kwargs = {
-        "base_url": auth_config["redirect_uri"].removesuffix("/auth/callback"),
-    }
-
-    # Add optional parameters
-    if auth_config.get("scopes"):
-        oauth_kwargs["required_scopes"] = auth_config["scopes"]
-
-    try:
-        provider = OAuthProvider(**oauth_kwargs)
-    except ValueError as exc:
-        raise ConfigurationException(str(exc)) from exc
-    except Exception as exc:
-        raise ConfigurationException(
-            f"Failed to initialize OAuth authorization server: {exc}"
-        ) from exc
-
-    logging.info("Server authentication enabled using OAuth authorization server")
-    return provider
+    raise ConfigurationException(
+        "Full OAuth authorization server mode ('oauth') is not currently "
+        "supported (dynamic client registration cannot persist registered "
+        "clients). Use 'oauth_proxy' to delegate authentication to an "
+        "upstream OAuth provider instead."
+    )
 
 
 def _build_oauth_proxy_provider(auth_config: dict[str, Any]) -> AuthProvider:

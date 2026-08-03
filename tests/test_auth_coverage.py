@@ -16,32 +16,27 @@ from itential_mcp.core.exceptions import ConfigurationException
 
 
 class TestOAuthProviderExceptionHandling:
-    """Test exception handling in OAuth provider builders"""
+    """Test that _build_oauth_provider always fails fast, unconditionally."""
 
-    @patch("itential_mcp.server.auth.OAuthProvider")
-    def test_oauth_provider_value_error(self, mock_oauth_provider):
-        """Test _build_oauth_provider handles ValueError"""
-        mock_oauth_provider.side_effect = ValueError("Invalid base_url")
+    def test_oauth_provider_always_raises_configuration_exception(self):
+        """Test _build_oauth_provider raises regardless of config contents.
 
+        Full OAuth authorization server mode is not currently supported,
+        so this must raise a ConfigurationException without ever
+        attempting to construct OAuthProvider -- even when the supplied
+        config looks otherwise complete.
+        """
         auth_config = {"redirect_uri": "https://example.com/auth/callback"}
 
-        with pytest.raises(ConfigurationException) as exc_info:
-            _build_oauth_provider(auth_config)
+        with patch("itential_mcp.server.auth.OAuthProvider") as mock_oauth_provider:
+            with pytest.raises(ConfigurationException) as exc_info:
+                _build_oauth_provider(auth_config)
 
-        assert "Invalid base_url" in str(exc_info.value)
+            mock_oauth_provider.assert_not_called()
 
-    @patch("itential_mcp.server.auth.OAuthProvider")
-    def test_oauth_provider_general_exception(self, mock_oauth_provider):
-        """Test _build_oauth_provider handles general Exception"""
-        mock_oauth_provider.side_effect = RuntimeError("Unexpected error")
-
-        auth_config = {"redirect_uri": "https://example.com/auth/callback"}
-
-        with pytest.raises(ConfigurationException) as exc_info:
-            _build_oauth_provider(auth_config)
-
-        assert "Failed to initialize OAuth authorization server" in str(exc_info.value)
-        assert "Unexpected error" in str(exc_info.value)
+        message = str(exc_info.value)
+        assert "not currently supported" in message
+        assert "oauth_proxy" in message
 
 
 class TestOAuthProxyProviderCoverage:
