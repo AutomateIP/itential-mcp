@@ -58,6 +58,9 @@ async def run_compliance_plan(
 
     Raises:
         ValueError: If the specified compliance plan name is not found
+        ComplianceException: If the compliance plan run produces no
+            instance, which typically indicates the plan has no devices
+            or checks configured
     """
     await ctx.debug("inside run_compliance_plan(...)")
     client = ctx.request_context.lifespan_context.get("client")
