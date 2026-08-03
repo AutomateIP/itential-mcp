@@ -14,6 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Raise `NotFoundError` instead of an unhandled `TypeError` from
   `add_devices_to_group`/`remove_devices_from_group` when the target device
   group name does not exist (#384)
+- Declare the missing `description` field on `CommandTemplateDetail`, which
+  previously caused Pydantic to silently drop it from
+  `describe_command_template`'s response even when the platform returned one
+  (#385)
 
 ## [0.13.2] - 2026-08-03
 

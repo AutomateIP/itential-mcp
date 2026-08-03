@@ -117,6 +117,7 @@ class CommandTemplateDetail(BaseModel):
     Attributes:
         id: Unique identifier for the command template.
         name: Human-readable template name.
+        description: Brief description of what the template does.
         commands: List of commands and associated validation rules.
         namespace: Project namespace (null for global templates).
         passRule: Pass rule configuration for template evaluation.
@@ -142,6 +143,18 @@ class CommandTemplateDetail(BaseModel):
                 Human-readable name of the command template
                 """
             )
+        ),
+    ]
+
+    description: Annotated[
+        str | None,
+        Field(
+            description=inspect.cleandoc(
+                """
+                Brief description of what the template does (null if not provided)
+                """
+            ),
+            default=None,
         ),
     ]
 
