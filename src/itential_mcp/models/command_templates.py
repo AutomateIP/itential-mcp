@@ -56,7 +56,8 @@ class CommandTemplate(BaseModel):
                 """
                 Brief description of what the template does (null if not provided)
                 """
-            )
+            ),
+            default=None,
         ),
     ]
 
@@ -67,7 +68,8 @@ class CommandTemplate(BaseModel):
                 """
                 Project namespace object (null for global templates)
                 """
-            )
+            ),
+            default=None,
         ),
     ]
 
@@ -161,7 +163,8 @@ class CommandTemplateDetail(BaseModel):
                 """
                 Project namespace object (null for global templates)
                 """
-            )
+            ),
+            default=None,
         ),
     ]
 
