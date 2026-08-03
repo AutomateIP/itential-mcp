@@ -343,6 +343,45 @@ class TestCreateIntegrationModelResponse:
 
         assert "Input should be 'OK' or 'CREATED'" in str(exc_info.value)
 
+    def test_create_integration_model_response_normalizes_title_case(self):
+        """Test CreateIntegrationModelResponse normalizes title-case status.
+
+        This reproduces the reported bug where the platform returns
+        "Created" (title case) instead of the exact literal "CREATED".
+        """
+        response = CreateIntegrationModelResponse(
+            status="Created", message="Test message"
+        )
+
+        assert response.status == "CREATED"
+
+    @pytest.mark.parametrize(
+        ("raw_status", "expected"),
+        [
+            ("created", "CREATED"),
+            ("ok", "OK"),
+            ("Ok", "OK"),
+        ],
+    )
+    def test_create_integration_model_response_normalizes_casing_variants(
+        self, raw_status, expected
+    ):
+        """Test CreateIntegrationModelResponse normalizes various casing variants"""
+        response = CreateIntegrationModelResponse(
+            status=raw_status, message="Test message"
+        )
+
+        assert response.status == expected
+
+    def test_create_integration_model_response_non_string_status_raises(self):
+        """Test CreateIntegrationModelResponse still rejects non-string status.
+
+        Ensures the case-normalization validator does not swallow type
+        errors for non-string values.
+        """
+        with pytest.raises(ValidationError):
+            CreateIntegrationModelResponse(status=123, message="Test message")
+
     def test_create_integration_model_response_missing_fields(self):
         """Test CreateIntegrationModelResponse with missing required fields"""
         with pytest.raises(ValidationError) as exc_info:
