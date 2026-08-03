@@ -332,7 +332,10 @@ class Service(ServiceBase):
             "/configuration_manager/name/devicegroups",
             json={"groupName": name},
         )
-        return res.json()
+        data = res.json()
+        if not data:
+            raise exceptions.NotFoundError(f"device group '{name}' not found")
+        return data
 
     async def get_device_groups(self) -> list[dict]:
         """

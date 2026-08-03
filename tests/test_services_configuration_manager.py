@@ -1333,11 +1333,60 @@ class TestConfigurationManagerDeviceGroups:
         # Reset side effect for other operations
         mock_client.get.side_effect = None
 
-        # Test client error in describe_device_group
+        # Test transport-level error in describe_device_group (e.g. connection
+        # failure or non-2xx response). Distinct from the 200-with-null "not
+        # found" path covered by test_describe_device_group_not_found below.
         mock_client._send_request.side_effect = Exception("Group not found")
 
         with pytest.raises(Exception, match="Group not found"):
             await service.describe_device_group("NonExistent Group")
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("empty_body", [None, {}])
+    async def test_describe_device_group_not_found(
+        self, service, mock_client, empty_body
+    ):
+        """Test describe_device_group raises NotFoundError on a 200 response
+        with a null (or empty) body, which is how the platform signals a
+        nonexistent device group name."""
+        mock_response = Mock()
+        mock_response.json.return_value = empty_body
+        mock_client._send_request.return_value = mock_response
+
+        with pytest.raises(exceptions.NotFoundError, match="NonExistent Group"):
+            await service.describe_device_group("NonExistent Group")
+
+    @pytest.mark.asyncio
+    async def test_add_devices_to_group_group_not_found(self, service, mock_client):
+        """Test add_devices_to_group propagates NotFoundError unchanged when
+        the underlying device group lookup fails to find the group, and
+        never issues the PUT update call."""
+        service.describe_device_group = AsyncMock(
+            side_effect=exceptions.NotFoundError("device group 'Ghost Group' not found")
+        )
+
+        with pytest.raises(exceptions.NotFoundError, match="Ghost Group"):
+            await service.add_devices_to_group(name="Ghost Group", devices=["device1"])
+
+        mock_client.put.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_remove_devices_from_group_group_not_found(
+        self, service, mock_client
+    ):
+        """Test remove_devices_from_group propagates NotFoundError unchanged
+        when the underlying device group lookup fails to find the group, and
+        never issues the PUT update call."""
+        service.describe_device_group = AsyncMock(
+            side_effect=exceptions.NotFoundError("device group 'Ghost Group' not found")
+        )
+
+        with pytest.raises(exceptions.NotFoundError, match="Ghost Group"):
+            await service.remove_devices_from_group(
+                name="Ghost Group", devices=["device1"]
+            )
+
+        mock_client.put.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_device_group_integration_workflow(self, service, mock_client):
