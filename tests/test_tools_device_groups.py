@@ -805,6 +805,10 @@ class TestToolSchemas:
         assert array_schema["items"] == {"type": "string"}
         assert array_schema["items"] != {}
 
+        assert "default" in devices_schema
+        assert devices_schema["default"] is None
+        assert "devices" not in tool.parameters.get("required", [])
+
     def test_add_devices_to_group_devices_schema(self):
         """Test add_devices_to_group's devices schema declares string items"""
         tool = Tool.from_function(device_groups.add_devices_to_group)
@@ -816,6 +820,10 @@ class TestToolSchemas:
         assert array_schema["items"] == {"type": "string"}
         assert array_schema["items"] != {}
 
+        assert "default" in devices_schema
+        assert devices_schema["default"] is None
+        assert "devices" not in tool.parameters.get("required", [])
+
     def test_remove_devices_from_group_devices_schema(self):
         """Test remove_devices_from_group's devices schema declares string items"""
         tool = Tool.from_function(device_groups.remove_devices_from_group)
@@ -826,3 +834,7 @@ class TestToolSchemas:
         assert array_schema["type"] == "array"
         assert array_schema["items"] == {"type": "string"}
         assert array_schema["items"] != {}
+
+        assert "default" in devices_schema
+        assert devices_schema["default"] is None
+        assert "devices" not in tool.parameters.get("required", [])

@@ -44,6 +44,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `run_compliance_plan` when a compliance plan's run history is empty (#379)
 - Use the correct HTTP method and path for `update_command_template`, which
   previously 404'd on every real call (#380)
+- Add missing `default=None` to the `devices` parameter in
+  `add_devices_to_group` and `remove_devices_from_group`, which caused these
+  tools to still fail with a stringified-array validation error even after
+  the item-type fix above, since the parameter's JSON schema incorrectly
+  marked it as required
 
 ### Note
 - The two dependency bumps above (#369, #371) touch the ASGI/transport layer

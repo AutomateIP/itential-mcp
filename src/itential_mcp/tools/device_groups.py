@@ -102,6 +102,7 @@ async def add_devices_to_group(
         list[str] | None,
         Field(
             description="List of devices to add to the group",
+            default=None,
         ),
     ],
 ) -> models.AddDevicesToGroupResponse:
@@ -152,7 +153,11 @@ async def remove_devices_from_group(
         str, Field(description="The name of the device group to remove devices from")
     ],
     devices: Annotated[
-        list[str] | None, Field(description="List of devices to remove from the group")
+        list[str] | None,
+        Field(
+            description="List of devices to remove from the group",
+            default=None,
+        ),
     ],
 ) -> models.RemoveDevicesFromGroupResponse:
     """
