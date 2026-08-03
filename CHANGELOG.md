@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+- Constrain pydantic-settings to >=2.14.2, resolving GHSA-4xgf-cpjx-pc3j
+  (medium severity, `NestedSecretsSettingsSource` issue with
+  `secrets_nested_subdir=True`, a feature not used anywhere in this
+  codebase); transitive dependency via fastmcp/mcp with no direct usage,
+  re-resolved via uv lock with no cascading version changes (#387)
+
 ### Fixed
 - Merge supplied devices into a device group's existing device list instead
   of replacing it, which previously caused `add_devices_to_group` to silently
