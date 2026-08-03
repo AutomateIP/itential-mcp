@@ -1004,7 +1004,7 @@ class TestConfigurationManagerDeviceGroups:
 
     @pytest.mark.asyncio
     async def test_add_devices_to_group_success(self, service, mock_client):
-        """Test successfully adding devices to a group."""
+        """Test successfully adding new devices merges with existing devices."""
         # Mock describe_device_group response
         mock_group_data = {
             "id": "group-123",
@@ -1021,13 +1021,13 @@ class TestConfigurationManagerDeviceGroups:
         mock_client.put.return_value = mock_response
 
         result = await service.add_devices_to_group(
-            name="Test Group", devices=["device1", "device2", "device3"]
+            name="Test Group", devices=["device2", "device3"]
         )
 
         # Verify describe_device_group was called
         service.describe_device_group.assert_called_once_with("Test Group")
 
-        # Verify API call
+        # Verify API call contains the union of existing + new devices
         expected_body = {"details": {"devices": ["device1", "device2", "device3"]}}
         mock_client.put.assert_called_once_with(
             "/configuration_manager/deviceGroups/group-123", json=expected_body
@@ -1037,7 +1037,7 @@ class TestConfigurationManagerDeviceGroups:
 
     @pytest.mark.asyncio
     async def test_add_devices_to_group_empty_list(self, service, mock_client):
-        """Test adding empty devices list to a group."""
+        """Test adding an empty devices list leaves the group unchanged."""
         mock_group_data = {
             "id": "group-789",
             "name": "Empty Add Group",
@@ -1047,20 +1047,114 @@ class TestConfigurationManagerDeviceGroups:
 
         service.describe_device_group = AsyncMock(return_value=mock_group_data)
 
+        result = await service.add_devices_to_group(name="Empty Add Group", devices=[])
+
+        # Verify no PUT call was made since the resulting list is unchanged
+        mock_client.put.assert_not_called()
+
+        # Verify the no-op result indicates no devices were added
+        assert result == {"status": "success", "message": "no new devices to add"}
+
+    @pytest.mark.asyncio
+    async def test_add_devices_to_group_merges_not_replaces_regression(
+        self, service, mock_client
+    ):
+        """Regression test: adding devices must merge, not replace.
+
+        Confirmed live bug: a group with [CPE-1, CPE-2] became [CISCO-APIC]
+        after calling add_devices_to_group(devices=["CISCO-APIC"]).
+        """
+        mock_group_data = {
+            "id": "group-live-repro",
+            "name": "TestGroup",
+            "devices": ["CPE-1", "CPE-2"],
+            "description": "Live repro group",
+        }
+
+        service.describe_device_group = AsyncMock(return_value=mock_group_data)
+
         expected_response = {"status": "success"}
         mock_response = Mock()
         mock_response.json.return_value = expected_response
         mock_client.put.return_value = mock_response
 
-        result = await service.add_devices_to_group(name="Empty Add Group", devices=[])
+        await service.add_devices_to_group(name="TestGroup", devices=["CISCO-APIC"])
 
-        # Verify empty devices list was handled
-        expected_body = {"details": {"devices": []}}
+        expected_body = {"details": {"devices": ["CPE-1", "CPE-2", "CISCO-APIC"]}}
         mock_client.put.assert_called_once_with(
-            "/configuration_manager/deviceGroups/group-789", json=expected_body
+            "/configuration_manager/deviceGroups/group-live-repro", json=expected_body
         )
 
-        assert result == expected_response
+        put_devices = mock_client.put.call_args.kwargs["json"]["details"]["devices"]
+        assert "CPE-1" in put_devices
+        assert "CPE-2" in put_devices
+
+    @pytest.mark.asyncio
+    async def test_add_devices_to_group_idempotent_already_present(
+        self, service, mock_client
+    ):
+        """Test adding a device already present in the group is a no-op."""
+        mock_group_data = {
+            "id": "group-idempotent",
+            "name": "Idempotent Group",
+            "devices": ["CPE-1"],
+            "description": "Idempotent group",
+        }
+
+        service.describe_device_group = AsyncMock(return_value=mock_group_data)
+
+        result = await service.add_devices_to_group(
+            name="Idempotent Group", devices=["CPE-1"]
+        )
+
+        # No duplicate should be created and no PUT call should be made
+        mock_client.put.assert_not_called()
+        assert result == {"status": "success", "message": "no new devices to add"}
+
+    @pytest.mark.asyncio
+    async def test_add_devices_to_group_dedups_supplied_list(
+        self, service, mock_client
+    ):
+        """Test duplicate devices within the caller's own list are deduped."""
+        mock_group_data = {
+            "id": "group-dedup",
+            "name": "Dedup Group",
+            "devices": [],
+            "description": "Dedup group",
+        }
+
+        service.describe_device_group = AsyncMock(return_value=mock_group_data)
+
+        expected_response = {"status": "success"}
+        mock_response = Mock()
+        mock_response.json.return_value = expected_response
+        mock_client.put.return_value = mock_response
+
+        await service.add_devices_to_group(name="Dedup Group", devices=["A", "A", "B"])
+
+        expected_body = {"details": {"devices": ["A", "B"]}}
+        mock_client.put.assert_called_once_with(
+            "/configuration_manager/deviceGroups/group-dedup", json=expected_body
+        )
+
+    @pytest.mark.asyncio
+    async def test_add_devices_to_group_none_devices_is_noop(
+        self, service, mock_client
+    ):
+        """Test passing devices=None is a no-op that leaves the group unchanged."""
+        mock_group_data = {
+            "id": "group-none",
+            "name": "None Group",
+            "devices": ["CPE-1"],
+            "description": "None group",
+        }
+
+        service.describe_device_group = AsyncMock(return_value=mock_group_data)
+
+        result = await service.add_devices_to_group(name="None Group", devices=None)
+
+        mock_client.put.assert_not_called()
+        assert result == {"status": "success", "message": "no new devices to add"}
 
     @pytest.mark.asyncio
     async def test_remove_devices_from_group_success(self, service, mock_client):
