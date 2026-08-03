@@ -5,8 +5,11 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 
-from itential_mcp.tools.applications import start_application
-from itential_mcp.models.applications import StartApplicationResponse
+from itential_mcp.tools.applications import get_applications, start_application
+from itential_mcp.models.applications import (
+    GetApplicationsResponse,
+    StartApplicationResponse,
+)
 from fastmcp import Context
 
 
@@ -109,3 +112,172 @@ class TestStartApplicationTool:
         await start_application(self.mock_context, name="Tags", timeout=10)
 
         self.mock_context.debug.assert_called_once_with("inside start_application(...)")
+
+
+class TestGetApplicationsTool:
+    """Regression tests for get_applications with null/missing fields.
+
+    GetApplicationsElement previously declared description, package, and
+    version as required non-nullable strings, even though get_applications
+    sources all three via .get() on the raw platform response -- which can
+    already yield None. At least one real platform application
+    (ModelRegistryService) returns description: null, causing
+    get_applications to fail outright with a Pydantic validation error for
+    the entire result set on a single bad record. These tests confirm the
+    widened Optional fields tolerate null and missing values, mirroring the
+    identical fix already applied to health.py's ApplicationInfo model.
+    """
+
+    def setup_method(self):
+        """Set up shared mock fixtures."""
+        self.mock_context = AsyncMock(spec=Context)
+        self.mock_context.debug = AsyncMock()
+
+        self.mock_client = MagicMock()
+        self.mock_client.get = AsyncMock()
+        self.mock_context.request_context.lifespan_context.get.return_value = (
+            self.mock_client
+        )
+
+    @pytest.mark.asyncio
+    async def test_get_applications_tolerates_null_description(self):
+        """get_applications must not raise when one record has a null description.
+
+        Replicates the live failure observed with ModelRegistryService,
+        which returns description: null alongside otherwise normal
+        application records.
+        """
+        res = MagicMock()
+        res.json = MagicMock(
+            return_value={
+                "results": [
+                    {
+                        "id": "ModelRegistryService",
+                        "package_id": "@itential/model-registry-service",
+                        "version": "1.0.0",
+                        "description": None,
+                        "state": "RUNNING",
+                    },
+                    {
+                        "id": "WorkFlowEngine",
+                        "package_id": "@itential/workflow-engine",
+                        "version": "2.0.0",
+                        "description": "Executes workflows",
+                        "state": "RUNNING",
+                    },
+                ]
+            }
+        )
+        self.mock_client.get = AsyncMock(return_value=res)
+
+        result = await get_applications(self.mock_context)
+
+        assert isinstance(result, GetApplicationsResponse)
+        assert len(result.root) == 2
+        assert result.root[0].name == "ModelRegistryService"
+        assert result.root[0].description is None
+        assert result.root[1].description == "Executes workflows"
+
+    @pytest.mark.asyncio
+    async def test_get_applications_tolerates_missing_description_key(self):
+        """get_applications must not raise when description key is absent entirely.
+
+        The .get() call returns None whether the key is null or missing,
+        but both shapes are worth covering explicitly.
+        """
+        res = MagicMock()
+        res.json = MagicMock(
+            return_value={
+                "results": [
+                    {
+                        "id": "SomeApp",
+                        "package_id": "@itential/some-app",
+                        "version": "1.0.0",
+                        "state": "RUNNING",
+                    },
+                ]
+            }
+        )
+        self.mock_client.get = AsyncMock(return_value=res)
+
+        result = await get_applications(self.mock_context)
+
+        assert isinstance(result, GetApplicationsResponse)
+        assert len(result.root) == 1
+        assert result.root[0].description is None
+
+    @pytest.mark.asyncio
+    async def test_get_applications_tolerates_null_package_and_version(self):
+        """get_applications must not raise when package or version are null."""
+        res = MagicMock()
+        res.json = MagicMock(
+            return_value={
+                "results": [
+                    {
+                        "id": "NullPackageApp",
+                        "package_id": None,
+                        "version": "1.0.0",
+                        "description": "Has null package",
+                        "state": "RUNNING",
+                    },
+                    {
+                        "id": "NullVersionApp",
+                        "package_id": "@itential/null-version-app",
+                        "version": None,
+                        "description": "Has null version",
+                        "state": "RUNNING",
+                    },
+                ]
+            }
+        )
+        self.mock_client.get = AsyncMock(return_value=res)
+
+        result = await get_applications(self.mock_context)
+
+        assert isinstance(result, GetApplicationsResponse)
+        assert len(result.root) == 2
+        assert result.root[0].package is None
+        assert result.root[0].version == "1.0.0"
+        assert result.root[1].package == "@itential/null-version-app"
+        assert result.root[1].version is None
+
+    @pytest.mark.asyncio
+    async def test_get_applications_happy_path_maps_all_fields(self):
+        """get_applications must correctly map all fields when fully populated."""
+        res = MagicMock()
+        res.json = MagicMock(
+            return_value={
+                "results": [
+                    {
+                        "id": "AutomationStudio",
+                        "package_id": "@itential/automation-studio",
+                        "version": "5.2.1",
+                        "description": "Design and manage automations",
+                        "state": "RUNNING",
+                    },
+                ]
+            }
+        )
+        self.mock_client.get = AsyncMock(return_value=res)
+
+        result = await get_applications(self.mock_context)
+
+        assert isinstance(result, GetApplicationsResponse)
+        assert len(result.root) == 1
+        element = result.root[0]
+        assert element.name == "AutomationStudio"
+        assert element.package == "@itential/automation-studio"
+        assert element.version == "5.2.1"
+        assert element.description == "Design and manage automations"
+        assert element.state == "RUNNING"
+
+    @pytest.mark.asyncio
+    async def test_get_applications_logs_entry(self):
+        """get_applications must log entry via ctx.debug."""
+        res = MagicMock()
+        res.json = MagicMock(return_value={"results": []})
+        self.mock_client.get = AsyncMock(return_value=res)
+
+        await get_applications(self.mock_context)
+
+        self.mock_context.debug.assert_called_once_with("inside get_applications(...)")
