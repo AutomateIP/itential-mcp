@@ -6,6 +6,7 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock
 
 from fastmcp import Context
+from fastmcp.tools import Tool
 
 from itential_mcp.tools import device_groups
 from itential_mcp.models.device_groups import (
@@ -15,6 +16,32 @@ from itential_mcp.models.device_groups import (
     AddDevicesToGroupResponse,
     RemoveDevicesFromGroupResponse,
 )
+
+
+def _find_array_schema(devices_schema: dict) -> dict:
+    """
+    Locate the array branch of a devices parameter's JSON schema.
+
+    Supports both a bare array schema and a `list[str] | None` schema, which
+    FastMCP represents as an `anyOf` of an array branch and a null branch.
+
+    Args:
+        devices_schema (dict): The JSON schema fragment for the devices property
+
+    Returns:
+        dict: The array branch of the schema (contains "type": "array" and "items")
+
+    Raises:
+        AssertionError: If no array branch is found in the schema
+    """
+    if devices_schema.get("type") == "array":
+        return devices_schema
+
+    for branch in devices_schema.get("anyOf", []):
+        if branch.get("type") == "array":
+            return branch
+
+    raise AssertionError(f"No array branch found in schema: {devices_schema}")
 
 
 class TestModule:
@@ -753,3 +780,49 @@ class TestToolsIntegration:
                 description="Should fail",
                 devices=[],
             )
+
+
+class TestToolSchemas:
+    """
+    Schema-assertion tests for the `devices` parameter.
+
+    These tests inspect the actual JSON schema FastMCP generates for each
+    tool, rather than only calling the tool functions with real Python
+    lists. Calling with real lists never exercises the generated schema,
+    which is exactly why an underspecified `items: {}` schema (from a bare
+    `list | None` annotation) previously slipped through the test suite
+    undetected.
+    """
+
+    def test_create_device_group_devices_schema(self):
+        """Test create_device_group's devices schema declares string items"""
+        tool = Tool.from_function(device_groups.create_device_group)
+
+        devices_schema = tool.parameters["properties"]["devices"]
+        array_schema = _find_array_schema(devices_schema)
+
+        assert array_schema["type"] == "array"
+        assert array_schema["items"] == {"type": "string"}
+        assert array_schema["items"] != {}
+
+    def test_add_devices_to_group_devices_schema(self):
+        """Test add_devices_to_group's devices schema declares string items"""
+        tool = Tool.from_function(device_groups.add_devices_to_group)
+
+        devices_schema = tool.parameters["properties"]["devices"]
+        array_schema = _find_array_schema(devices_schema)
+
+        assert array_schema["type"] == "array"
+        assert array_schema["items"] == {"type": "string"}
+        assert array_schema["items"] != {}
+
+    def test_remove_devices_from_group_devices_schema(self):
+        """Test remove_devices_from_group's devices schema declares string items"""
+        tool = Tool.from_function(device_groups.remove_devices_from_group)
+
+        devices_schema = tool.parameters["properties"]["devices"]
+        array_schema = _find_array_schema(devices_schema)
+
+        assert array_schema["type"] == "array"
+        assert array_schema["items"] == {"type": "string"}
+        assert array_schema["items"] != {}
