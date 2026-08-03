@@ -154,6 +154,7 @@ class TestCommandTemplateDetail:
         detail = models.CommandTemplateDetail(
             _id="detail_123",
             name="detailed_template",
+            description="Detailed test template",
             commands=commands,
             namespace={"type": "project", "_id": "project1", "name": "Project 1"},
             passRule=True,
@@ -161,6 +162,7 @@ class TestCommandTemplateDetail:
 
         assert detail.id == "detail_123"
         assert detail.name == "detailed_template"
+        assert detail.description == "Detailed test template"
         assert detail.commands == commands
         assert detail.namespace["_id"] == "project1"
         assert detail.passRule is True
@@ -193,6 +195,40 @@ class TestCommandTemplateDetail:
         detail = models.CommandTemplateDetail(**payload)
 
         assert detail.namespace is None
+
+    def test_command_template_detail_missing_description(self):
+        """Test CommandTemplateDetail defaults description to None when the
+        key is absent entirely from the platform response.
+        """
+        payload = {
+            "_id": "linux-curl-http",
+            "name": "linux-curl-http",
+            "commands": [],
+            "namespace": None,
+            "passRule": True,
+        }
+
+        detail = models.CommandTemplateDetail(**payload)
+
+        assert detail.description is None
+
+    def test_command_template_detail_with_description(self):
+        """Test CommandTemplateDetail round-trips description correctly
+        when the platform response includes it, guarding against the
+        silent data loss that occurred when this field was undeclared.
+        """
+        payload = {
+            "_id": "linux-curl-http",
+            "name": "linux-curl-http",
+            "description": "Runs curl against the device",
+            "commands": [],
+            "namespace": None,
+            "passRule": True,
+        }
+
+        detail = models.CommandTemplateDetail(**payload)
+
+        assert detail.description == "Runs curl against the device"
 
 
 class TestDescribeCommandTemplateResponse:
