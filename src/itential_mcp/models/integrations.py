@@ -8,7 +8,7 @@ import inspect
 
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field, RootModel
+from pydantic import BaseModel, Field, RootModel, field_validator
 
 
 class GetIntegrationModelsElement(BaseModel):
@@ -101,7 +101,9 @@ class CreateIntegrationModelResponse(BaseModel):
     containing the operation status and descriptive message.
 
     Attributes:
-        status: Operation status (OK or CREATED).
+        status: Operation status (OK or CREATED). Casing is normalized on
+            input, so any casing variant returned by the platform (e.g.
+            "Created", "created") is accepted.
         message: Descriptive message about the operation.
     """
 
@@ -110,11 +112,34 @@ class CreateIntegrationModelResponse(BaseModel):
         Field(
             description=inspect.cleandoc(
                 """
-                Operation status (OK or CREATED)
+                Operation status (OK or CREATED). Casing is normalized on
+                input.
                 """
             )
         ),
     ]
+
+    @field_validator("status", mode="before")
+    @classmethod
+    def _normalize_status_case(cls, value: object) -> object:
+        """Normalize the casing of the incoming status value.
+
+        The Itential Platform has been observed returning the status value
+        with inconsistent casing (e.g. "Created" instead of "CREATED"). This
+        validator upper-cases string values before Literal validation so any
+        casing variant is accepted. Non-string values are passed through
+        unchanged so Pydantic's normal type-error handling still applies.
+
+        Args:
+            value: The raw status value provided to the model.
+
+        Returns:
+            The upper-cased string if value is a string, otherwise value
+            unchanged.
+        """
+        if isinstance(value, str):
+            return value.upper()
+        return value
 
     message: Annotated[
         str,

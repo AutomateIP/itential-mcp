@@ -263,6 +263,37 @@ class TestCreateIntegrationModel:
             assert result == expected_result
 
     @pytest.mark.asyncio
+    async def test_create_integration_model_success_normalizes_status_case(
+        self, mock_context, valid_openapi_model
+    ):
+        """Test creation succeeds when platform returns title-case status.
+
+        Reproduces the reported bug end-to-end at the tool layer: the
+        platform returns "Created" (title case) instead of the exact
+        literal "CREATED", and the tool must not raise a literal_error.
+        """
+        with patch.object(integrations, "get_integration_models") as mock_get:
+            mock_get.return_value = GetIntegrationModelsResponse(root=[])
+
+            mock_response = {
+                "status": "Created",
+                "message": "Integration model created successfully",
+            }
+
+            client = mock_context.request_context.lifespan_context.get.return_value
+            client.integrations.create_integration_model.return_value = mock_response
+
+            result = await integrations.create_integration_model(
+                mock_context, valid_openapi_model
+            )
+
+            expected_result = CreateIntegrationModelResponse(
+                status="CREATED", message="Integration model created successfully"
+            )
+
+            assert result == expected_result
+
+    @pytest.mark.asyncio
     async def test_create_integration_model_already_exists(
         self, mock_context, valid_openapi_model
     ):
