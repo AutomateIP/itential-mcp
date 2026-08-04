@@ -17,6 +17,7 @@ import configparser
 from pathlib import Path
 from typing import Any
 
+from ..core.exceptions import ConfigurationException
 from .models import (
     Config,
     ServerConfig,
@@ -26,6 +27,10 @@ from .models import (
     EndpointTool,
     ServiceTool,
 )
+
+# Top-level section names recognized in config files, in addition to any
+# section matching the "tool:<name>" pattern.
+_RECOGNIZED_SECTIONS = frozenset({"server", "auth", "platform"})
 
 
 def _parse_tool_env_variables() -> dict[str, dict[str, str]]:
@@ -126,6 +131,9 @@ def _parse_config_file(file_path: Path) -> tuple[dict[str, Any], list[Tool]]:
 
     Raises:
         FileNotFoundError: If the config file does not exist.
+        ConfigurationException: If the config file contains a top-level
+            section name that is not recognized (not one of "server",
+            "auth", "platform", or "tool:<name>").
     """
     if not file_path.is_file():
         raise FileNotFoundError(f"Config file not found: {file_path}")
@@ -152,11 +160,18 @@ def _parse_config_file(file_path: Path) -> tuple[dict[str, Any], list[Tool]]:
 
             tools.append(_create_tool_from_dict(tool_data))
 
-        else:
+        elif section in _RECOGNIZED_SECTIONS:
             # Parse regular configuration sections
             for key, value in parser.items(section):
                 config_key = f"{section}_{key}"
                 config_data[config_key] = value
+
+        else:
+            valid_sections = ", ".join(sorted(_RECOGNIZED_SECTIONS) + ["tool:<name>"])
+            raise ConfigurationException(
+                f"Invalid config file section: [{section}]. "
+                f"Valid section names are: {valid_sections}."
+            )
 
     # Add any remaining environment tools not found in config file
     for tool_name, tool_data in tool_env_config.items():

@@ -3,6 +3,10 @@
 # sections. For each configuration option, there is a description of the option
 # along with the application default setting and name of the environment
 # varilable that can be used to override the value.
+#
+# Only `server`, `platform`, `auth`, and `tool:<name>` are valid top-level
+# section names. Any other section name will cause the server to fail to
+# start with a configuration error.
 
 # The server section handles configuration options for running the MCP server.
 # All configuration options in this section are optional and can be overridden

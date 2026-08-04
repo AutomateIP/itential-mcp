@@ -435,6 +435,44 @@ class TestLoaderFunctions:
         assert tools[0].tool_name == "ENV_ONLY"
         assert tools[0].type == "service"
 
+    def test_parse_config_file_with_unrecognized_section_raises(self, tmp_path):
+        """Test _parse_config_file raises ConfigurationException on an
+        unrecognized top-level section name instead of silently flattening
+        it and dropping the values.
+        """
+        from itential_mcp.config.loaders import _parse_config_file
+        from itential_mcp.core.exceptions import ConfigurationException
+
+        config_path = tmp_path / "test.ini"
+
+        cp = configparser.ConfigParser()
+        cp["profile prod"] = {"host": "foo"}
+
+        with open(config_path, "w") as f:
+            cp.write(f)
+
+        with pytest.raises(ConfigurationException):
+            _parse_config_file(config_path)
+
+    def test_parse_config_file_with_capitalized_section_raises(self, tmp_path):
+        """Test _parse_config_file rejects any unrecognized top-level
+        section name generically, not just "profile" (e.g. wrong casing
+        or pluralization of an otherwise-valid section name).
+        """
+        from itential_mcp.config.loaders import _parse_config_file
+        from itential_mcp.core.exceptions import ConfigurationException
+
+        config_path = tmp_path / "test.ini"
+
+        cp = configparser.ConfigParser()
+        cp["Platform"] = {"host": "platform.example.com"}
+
+        with open(config_path, "w") as f:
+            cp.write(f)
+
+        with pytest.raises(ConfigurationException):
+            _parse_config_file(config_path)
+
     def test_split_comma_separated_in_loaders(self):
         """Test _split_comma_separated function in loaders module."""
         from itential_mcp.config.loaders import _split_comma_separated
