@@ -191,6 +191,7 @@ class TestOAuthProviderBuilding:
             upstream_client_secret="test_secret",
             token_verifier=mock_verifier_instance,
             base_url="http://localhost:8000",
+            redirect_path="/auth/callback",
         )
 
     @patch("itential_mcp.server.auth.OAuthProxy")
@@ -209,6 +210,12 @@ class TestOAuthProviderBuilding:
         eaten as well. Under the old ``rstrip`` behavior this would have
         produced "https://auth-host.example." instead of the correct
         "https://auth-host.example.uk".
+
+        base_url/redirect_path derivation now uses ``urllib.parse.urlsplit``
+        instead of a suffix-stripping heuristic, so this scenario is handled
+        correctly by construction: base_url is always scheme+netloc only and
+        redirect_path is always the parsed path, independent of any
+        character overlap between host and path.
         """
         from itential_mcp.config.converters import auth_to_dict
 
@@ -239,6 +246,137 @@ class TestOAuthProviderBuilding:
             upstream_client_secret="test_secret",
             token_verifier=mock_verifier_instance,
             base_url="https://auth-host.example.uk",
+            redirect_path="/auth/callback",
+        )
+
+    @patch("itential_mcp.server.auth.OAuthProxy")
+    @patch("itential_mcp.server.auth.JWTVerifier")
+    def test_build_oauth_proxy_provider_non_default_redirect_path(
+        self, mock_jwt_verifier, mock_oauth_proxy
+    ):
+        """Redirect URIs at non-``/auth/callback`` paths must derive a
+        matching, non-default ``redirect_path`` instead of silently falling
+        back to ``OAuthProxy``'s default of ``/auth/callback``.
+
+        This is the exact scenario that was previously silently broken: a
+        suffix-based ``removesuffix("/auth/callback")`` was a no-op for any
+        redirect URI not ending in that literal suffix, causing the entire
+        redirect_uri (path included) to be treated as base_url and
+        ``OAuthProxy`` to append its own default ``/auth/callback`` on top,
+        producing a callback URL that never matched what was registered with
+        the upstream IdP.
+        """
+        from itential_mcp.config.converters import auth_to_dict
+
+        auth_config = auth_to_dict(
+            make_auth_config(
+                type="oauth_proxy",
+                oauth_client_id="test_client",
+                oauth_client_secret="test_secret",
+                oauth_authorization_url="https://accounts.google.com/oauth/authorize",
+                oauth_token_url="https://oauth2.googleapis.com/token",
+                oauth_redirect_uri="https://example.com/callback",
+                jwks_uri="https://accounts.google.com/.well-known/jwks.json",
+            )
+        )
+
+        mock_verifier_instance = MagicMock()
+        mock_jwt_verifier.return_value = mock_verifier_instance
+
+        mock_provider = MagicMock()
+        mock_oauth_proxy.return_value = mock_provider
+
+        _build_oauth_proxy_provider(auth_config)
+
+        mock_oauth_proxy.assert_called_once_with(
+            upstream_authorization_endpoint="https://accounts.google.com/oauth/authorize",
+            upstream_token_endpoint="https://oauth2.googleapis.com/token",
+            upstream_client_id="test_client",
+            upstream_client_secret="test_secret",
+            token_verifier=mock_verifier_instance,
+            base_url="https://example.com",
+            redirect_path="/callback",
+        )
+
+    @patch("itential_mcp.server.auth.OAuthProxy")
+    @patch("itential_mcp.server.auth.JWTVerifier")
+    def test_build_oauth_proxy_provider_nested_redirect_path(
+        self, mock_jwt_verifier, mock_oauth_proxy
+    ):
+        """A deeply nested, non-default redirect path must be preserved in
+        full as redirect_path, with base_url containing only scheme+netloc.
+        """
+        from itential_mcp.config.converters import auth_to_dict
+
+        auth_config = auth_to_dict(
+            make_auth_config(
+                type="oauth_proxy",
+                oauth_client_id="test_client",
+                oauth_client_secret="test_secret",
+                oauth_authorization_url="https://accounts.google.com/oauth/authorize",
+                oauth_token_url="https://oauth2.googleapis.com/token",
+                oauth_redirect_uri="https://example.com/sso/oauth/return",
+                jwks_uri="https://accounts.google.com/.well-known/jwks.json",
+            )
+        )
+
+        mock_verifier_instance = MagicMock()
+        mock_jwt_verifier.return_value = mock_verifier_instance
+
+        mock_provider = MagicMock()
+        mock_oauth_proxy.return_value = mock_provider
+
+        _build_oauth_proxy_provider(auth_config)
+
+        mock_oauth_proxy.assert_called_once_with(
+            upstream_authorization_endpoint="https://accounts.google.com/oauth/authorize",
+            upstream_token_endpoint="https://oauth2.googleapis.com/token",
+            upstream_client_id="test_client",
+            upstream_client_secret="test_secret",
+            token_verifier=mock_verifier_instance,
+            base_url="https://example.com",
+            redirect_path="/sso/oauth/return",
+        )
+
+    @patch("itential_mcp.server.auth.OAuthProxy")
+    @patch("itential_mcp.server.auth.JWTVerifier")
+    def test_build_oauth_proxy_provider_non_default_port_and_path(
+        self, mock_jwt_verifier, mock_oauth_proxy
+    ):
+        """A redirect URI with a non-default port and a non-default callback
+        path must derive a base_url that includes the port and a
+        redirect_path matching the actual configured path.
+        """
+        from itential_mcp.config.converters import auth_to_dict
+
+        auth_config = auth_to_dict(
+            make_auth_config(
+                type="oauth_proxy",
+                oauth_client_id="test_client",
+                oauth_client_secret="test_secret",
+                oauth_authorization_url="https://accounts.google.com/oauth/authorize",
+                oauth_token_url="https://oauth2.googleapis.com/token",
+                oauth_redirect_uri="https://example.com:8443/oauth2/idpresponse",
+                jwks_uri="https://accounts.google.com/.well-known/jwks.json",
+            )
+        )
+
+        mock_verifier_instance = MagicMock()
+        mock_jwt_verifier.return_value = mock_verifier_instance
+
+        mock_provider = MagicMock()
+        mock_oauth_proxy.return_value = mock_provider
+
+        _build_oauth_proxy_provider(auth_config)
+
+        mock_oauth_proxy.assert_called_once_with(
+            upstream_authorization_endpoint="https://accounts.google.com/oauth/authorize",
+            upstream_token_endpoint="https://oauth2.googleapis.com/token",
+            upstream_client_id="test_client",
+            upstream_client_secret="test_secret",
+            token_verifier=mock_verifier_instance,
+            base_url="https://example.com:8443",
+            redirect_path="/oauth2/idpresponse",
         )
 
     def test_build_oauth_proxy_provider_missing_fields(self):

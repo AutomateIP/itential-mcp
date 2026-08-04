@@ -13,6 +13,7 @@ extended with additional providers in the future.
 from __future__ import annotations
 
 from typing import Any
+from urllib.parse import urlsplit
 
 from fastmcp.server.auth import (
     AuthProvider,
@@ -186,7 +187,15 @@ def _build_oauth_proxy_provider(auth_config: dict[str, Any]) -> AuthProvider:
 
     token_verifier = _build_jwt_verifier(auth_config)
 
-    base_url = auth_config["redirect_uri"].removesuffix("/auth/callback")
+    # Derive base_url and redirect_path from the configured redirect_uri using
+    # proper URL parsing rather than a suffix-based heuristic. A naive
+    # removesuffix("/auth/callback") is a no-op unless the redirect URI
+    # literally ends in that path, silently folding the entire path into
+    # base_url for any other callback path and producing a callback URL that
+    # never matches what's registered with the upstream IdP.
+    parsed_redirect_uri = urlsplit(auth_config["redirect_uri"])
+    base_url = f"{parsed_redirect_uri.scheme}://{parsed_redirect_uri.netloc}"
+    redirect_path = parsed_redirect_uri.path or "/auth/callback"
 
     oauth_kwargs = {
         "upstream_authorization_endpoint": auth_config["authorization_url"],
@@ -195,6 +204,7 @@ def _build_oauth_proxy_provider(auth_config: dict[str, Any]) -> AuthProvider:
         "upstream_client_secret": auth_config["client_secret"],
         "token_verifier": token_verifier,
         "base_url": base_url,
+        "redirect_path": redirect_path,
     }
 
     # Add optional parameters

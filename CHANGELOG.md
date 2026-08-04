@@ -39,6 +39,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   handshake's `serverInfo.version` field instead of fastmcp's own package
   version, which previously happened because `FastMCP()` was instantiated
   without a `version=` argument (#390)
+- Derive OAuth proxy `base_url`/`redirect_path` from the configured
+  `redirect_uri` using proper URL parsing instead of a
+  `removesuffix("/auth/callback")` heuristic, which previously was a no-op
+  for any redirect URI not literally ending in that path (e.g. `/callback`,
+  `/sso/oauth/return`) and silently produced a callback URL that never
+  matched what was registered with the upstream IdP (#391)
 
 ## [0.13.2] - 2026-08-03
 
