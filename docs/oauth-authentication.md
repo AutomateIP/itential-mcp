@@ -266,11 +266,6 @@ ConfigurationException: OAuth proxy authentication requires a token verifier: se
 OAuth providers only support HTTP-based transports (sse, http), not stdio
 ```
 
-**Invalid redirect URI:**
-```
-The redirect URI must end with /auth/callback for automatic base URL derivation
-```
-
 ### Debugging OAuth Issues
 
 1. **Enable debug logging:**
