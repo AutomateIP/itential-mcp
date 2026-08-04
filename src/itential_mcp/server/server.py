@@ -27,6 +27,7 @@ from ..platform import PlatformClient
 from .. import config
 from .. import bindings
 from ..core import logging
+from ..core import metadata
 from ..utilities import tool as toolutils
 from ..middleware.bindings import BindingsMiddleware
 from ..middleware.serialization import SerializationMiddleware
@@ -149,6 +150,7 @@ class Server:
         # Initialize FastMCP server
         self.mcp = FastMCP(
             name="Itential Platform MCP",
+            version=metadata.version,
             instructions=inspect.cleandoc(INSTRUCTIONS),
             lifespan=lifespan,
             auth=auth_provider,

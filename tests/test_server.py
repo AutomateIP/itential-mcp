@@ -6,8 +6,13 @@ import sys
 import pytest
 from unittest.mock import patch, MagicMock, AsyncMock
 
+import fastmcp
+from fastmcp import Client
+
+import itential_mcp
 from itential_mcp import server
 from itential_mcp.server import server as server_module
+from itential_mcp.core import metadata
 from itential_mcp.platform import PlatformClient
 from itential_mcp.middleware.bindings import BindingsMiddleware
 
@@ -683,6 +688,7 @@ class TestIntegration:
             # Verify FastMCP was created with correct parameters
             mock_fastmcp_class.assert_called_once_with(
                 name="Itential Platform MCP",
+                version=server_module.metadata.version,
                 instructions=server_module.inspect.cleandoc(server_module.INSTRUCTIONS),
                 lifespan=server_module.lifespan,
                 auth=None,
@@ -1409,3 +1415,75 @@ class TestConnectionTest:
 
         # Verify server did NOT continue to run after failed test
         mock_mcp.run_async.assert_not_called()
+
+
+class TestServerInfoVersion:
+    """Test that the MCP serverInfo.version reports itential-mcp's own
+    resolved version rather than fastmcp's package version.
+
+    Regression coverage for a bug where FastMCP() was instantiated without
+    a version= kwarg, causing it to default to fastmcp.__version__ instead
+    of itential-mcp's own version.
+    """
+
+    @pytest.mark.asyncio
+    @patch("itential_mcp.server.auth.build_auth_provider")
+    async def test_init_server_sets_fastmcp_version(self, mock_auth_builder):
+        """Test __init_server__ passes itential-mcp's own version to FastMCP"""
+        from itential_mcp.config.models import Config, ServerConfig, AuthConfig
+
+        mock_config = Config(
+            server=ServerConfig(transport="stdio", log_level="INFO"),
+            auth=AuthConfig(type="none"),
+        )
+
+        mock_auth_builder.return_value = None
+
+        server_instance = server_module.Server(mock_config)
+        await server_instance.__init_server__()
+
+        assert server_instance.mcp.version == metadata.version
+        assert server_instance.mcp.version == itential_mcp.__version__
+        assert server_instance.mcp.version != fastmcp.__version__
+
+    @pytest.mark.asyncio
+    @patch("itential_mcp.server.auth.build_auth_provider")
+    @patch("itential_mcp.server.server.bindings.iterbindings")
+    @patch("itential_mcp.server.server.toolutils.itertools")
+    async def test_live_client_reports_itential_mcp_version(
+        self, mock_itertools, mock_iterbindings, mock_auth_builder
+    ):
+        """Test that an in-memory FastMCP Client sees itential-mcp's version
+        in the MCP initialize handshake's serverInfo.version field, not
+        fastmcp's own package version.
+        """
+        from itential_mcp.config.models import Config, ServerConfig, AuthConfig
+
+        mock_config = Config(
+            server=ServerConfig(transport="stdio", tools_path=None, log_level="INFO"),
+            auth=AuthConfig(type="none"),
+        )
+
+        mock_auth_builder.return_value = None
+        mock_itertools.return_value = []
+
+        async def empty_aiter():
+            return
+            yield  # unreachable but makes this an async generator
+
+        mock_iterbindings.return_value = empty_aiter()
+
+        server_instance = server_module.Server(mock_config)
+
+        async with server_instance:
+            async with Client(server_instance.mcp) as client:
+                server_info = client.initialize_result.serverInfo
+
+                # The fix: serverInfo.version must be itential-mcp's own
+                # resolved version.
+                assert server_info.version == itential_mcp.__version__
+
+                # Regression guard: catch a future refactor that drops the
+                # version= kwarg and silently falls back to fastmcp's own
+                # package version.
+                assert server_info.version != fastmcp.__version__
