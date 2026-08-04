@@ -35,6 +35,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   typo like `[profile prod]`), which previously discarded the section's
   values with zero warning and let affected settings silently fall back to
   their defaults (#388)
+- Report itential-mcp's own resolved version in the MCP `initialize`
+  handshake's `serverInfo.version` field instead of fastmcp's own package
+  version, which previously happened because `FastMCP()` was instantiated
+  without a `version=` argument (#390)
 
 ## [0.13.2] - 2026-08-03
 
