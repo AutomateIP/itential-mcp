@@ -435,9 +435,7 @@ class TestLoaderFunctions:
         assert tools[0].tool_name == "ENV_ONLY"
         assert tools[0].type == "service"
 
-    def test_parse_config_file_with_unrecognized_section_raises(
-        self, tmp_path, monkeypatch
-    ):
+    def test_parse_config_file_with_unrecognized_section_raises(self, tmp_path):
         """Test _parse_config_file raises ConfigurationException on an
         unrecognized top-level section name instead of silently flattening
         it and dropping the values.
@@ -456,9 +454,7 @@ class TestLoaderFunctions:
         with pytest.raises(ConfigurationException):
             _parse_config_file(config_path)
 
-    def test_parse_config_file_with_capitalized_section_raises(
-        self, tmp_path, monkeypatch
-    ):
+    def test_parse_config_file_with_capitalized_section_raises(self, tmp_path):
         """Test _parse_config_file rejects any unrecognized top-level
         section name generically, not just "profile" (e.g. wrong casing
         or pluralization of an otherwise-valid section name).
