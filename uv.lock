@@ -700,14 +700,14 @@ wheels = [
 
 [[package]]
 name = "ipsdk"
-version = "0.7.0"
+version = "0.8.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "httpx" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/7f/8b/c8b01a0a6d7320d6a7ce5795d0d638168de6446c445475467cc42545e1bc/ipsdk-0.7.0.tar.gz", hash = "sha256:93e4f37dcc70ec74b7e7939069512d0c73c80a25654500c7bb4871312b75d2f6", size = 80409, upload-time = "2025-12-16T23:18:55.074Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/66/df/7cf57ee93e6d76c631bf52603daa720d8af4f30af90d7e379255612413be/ipsdk-0.8.0.tar.gz", hash = "sha256:c3f39914019500853c93cbd0062c7a9139c0702c0df4d5a6faa310066e4420ae", size = 81487, upload-time = "2026-02-25T15:59:32.013Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/7d/d7/b9091a951267af5943fdb8bf14a6d3a133e104130606c240024352c4beca/ipsdk-0.7.0-py3-none-any.whl", hash = "sha256:ae26e360479d340dea0114adda525b30598750a6f5d4417b25bf48482dd341b6", size = 51424, upload-time = "2025-12-16T23:18:53.896Z" },
+    { url = "https://files.pythonhosted.org/packages/db/1f/8142fd899ff8e831207212f9f6b8deaefb042f3eeb30e21dad72218d16a6/ipsdk-0.8.0-py3-none-any.whl", hash = "sha256:894856a6ba3ecfe05425efb683c0a12d236f01ec65d4c42e4006fcb6378be33b", size = 52283, upload-time = "2026-02-25T15:59:22.573Z" },
 ]
 
 [[package]]
