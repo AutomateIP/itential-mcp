@@ -30,6 +30,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   request, which previously silently truncated results to the platform's
   default page size of 25 and made `create_integration_model`'s
   duplicate-check unreliable (#386)
+- Raise `ConfigurationException` naming the invalid section instead of
+  silently dropping any unrecognized top-level config file section (e.g. a
+  typo like `[profile prod]`), which previously discarded the section's
+  values with zero warning and let affected settings silently fall back to
+  their defaults (#388)
 
 ## [0.13.2] - 2026-08-03
 
