@@ -119,6 +119,53 @@ class TestGetSessionsTool:
         assert len(result.root) == 0
 
     @pytest.mark.asyncio
+    async def test_get_sessions_surfaces_token_fields(self):
+        """Regression test: get_sessions must populate total_input_tokens/
+        total_output_tokens from the service layer, not silently drop them
+        (live-caught 2026-08-05 by integration-tester — the tool constructor
+        call omitted these kwargs despite SessionElement declaring them)"""
+        mock_service = AsyncMock()
+        mock_service.get_sessions.return_value = [
+            {
+                "session_id": "sess-001",
+                "agent_name": "network-agent",
+                "status": "COMPLETE",
+                "started_at": "2025-06-01T10:00:00Z",
+                "end_time": "2025-06-01T10:01:00Z",
+                "duration_ms": 60000,
+                "total_input_tokens": 12345,
+                "total_output_tokens": 678,
+            }
+        ]
+        ctx = _make_context(mock_service)
+
+        result = await agent_session_manager.get_sessions(ctx, None)
+
+        assert result.root[0].total_input_tokens == 12345
+        assert result.root[0].total_output_tokens == 678
+
+    @pytest.mark.asyncio
+    async def test_get_sessions_missing_token_fields_default_none(self):
+        """Test get_sessions tolerates a service payload without token fields"""
+        mock_service = AsyncMock()
+        mock_service.get_sessions.return_value = [
+            {
+                "session_id": "sess-001",
+                "agent_name": "network-agent",
+                "status": "COMPLETE",
+                "started_at": "2025-06-01T10:00:00Z",
+                "end_time": "2025-06-01T10:01:00Z",
+                "duration_ms": 60000,
+            }
+        ]
+        ctx = _make_context(mock_service)
+
+        result = await agent_session_manager.get_sessions(ctx, None)
+
+        assert result.root[0].total_input_tokens is None
+        assert result.root[0].total_output_tokens is None
+
+    @pytest.mark.asyncio
     async def test_get_sessions_passes_agent_name_filter(self):
         """Test get_sessions passes agent_name through to the service"""
         mock_service = AsyncMock()

@@ -240,6 +240,8 @@ async def get_sessions(
             started_at=started_at,
             end_time=end_time,
             duration_ms=item.get("duration_ms"),
+            total_input_tokens=item.get("total_input_tokens"),
+            total_output_tokens=item.get("total_output_tokens"),
         )
         session_elements.append(session_element)
 
@@ -559,6 +561,14 @@ async def get_agent_session_token_usage(
         - agent_name filtering here is a substring match; the underlying
           service call is made without a filter so that all sessions are
           fetched first.
+        - total_input_tokens/total_output_tokens are the platform's own
+          session-level totals, not a sum of describe_session_token_usage's
+          per-turn figures — the two can diverge substantially (observed up
+          to ~12x on multi-turn sessions), likely due to growing
+          conversation-context tokens being counted per turn on the platform
+          side. Don't expect them to reconcile; use this tool for
+          session-to-session comparison and describe_session_token_usage for
+          turn-level detail within one session.
     """
     await ctx.debug("inside get_agent_session_token_usage(...)")
 
@@ -638,6 +648,11 @@ async def describe_session_token_usage(
     Notes:
         - A session with zero inference turns returns a zeroed summary and
           an empty turns list, not an error.
+        - summary.total_tokens is a sum of each turn's own reported figures
+          and can diverge substantially from the session-level total
+          reported by get_agent_session_token_usage/get_sessions (observed
+          up to ~12x on multi-turn sessions) — the two are not expected to
+          reconcile. Use this tool for turn-level detail within one session.
     """
     await ctx.debug("inside describe_session_token_usage(...)")
 
@@ -664,10 +679,9 @@ async def describe_session_token_usage(
             token_usage = _extract_token_usage(data.get("tokenUsage") or {})
         else:
             # The swagger's data object for inference-failed events only
-            # documents durationMs (no errorMessage) — the error is assumed
-            # to be in the message's text field per its "text content or
-            # error message" description. Confirm against a live
-            # inference-failed event before merge.
+            # documents durationMs (no errorMessage); confirmed live against
+            # 3 real inference-failed events that the error text lands in
+            # the message's own text field instead.
             error = raw.get("text")
 
         turns.append(
