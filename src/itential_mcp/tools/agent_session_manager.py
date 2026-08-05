@@ -94,9 +94,11 @@ def _extract_token_usage(raw: dict) -> models.SessionTurnTokenUsage | None:
     """
     Extract token usage figures from a raw inference-succeeded tokenUsage dict.
 
-    # tokenUsage key names are inferred from the swagger's prose description
-    # only — no schema exists. Confirm actual key names against a live
-    # inference-succeeded event before merge.
+    Confirmed live against a real inference-succeeded event: the platform
+    uses inputTokens/outputTokens/cacheReadTokens/cacheCreationTokens. A few
+    alternate key spellings are still checked defensively in case a
+    different provider/model reports differently; raw is always kept as a
+    passthrough safety net.
 
     Args:
         raw (dict): The raw tokenUsage dict from a session message's
@@ -126,6 +128,18 @@ def _extract_token_usage(raw: dict) -> models.SessionTurnTokenUsage | None:
             output_tokens = raw[key]
             break
 
+    cache_read_tokens = None
+    for key in ("cacheReadTokens", "cache_read_tokens"):
+        if key in raw:
+            cache_read_tokens = raw[key]
+            break
+
+    cache_creation_tokens = None
+    for key in ("cacheCreationTokens", "cache_creation_tokens"):
+        if key in raw:
+            cache_creation_tokens = raw[key]
+            break
+
     total_tokens = None
     for key in ("totalTokens", "total_tokens"):
         if key in raw:
@@ -137,6 +151,8 @@ def _extract_token_usage(raw: dict) -> models.SessionTurnTokenUsage | None:
     return models.SessionTurnTokenUsage(
         input_tokens=input_tokens,
         output_tokens=output_tokens,
+        cache_read_tokens=cache_read_tokens,
+        cache_creation_tokens=cache_creation_tokens,
         total_tokens=total_tokens,
         raw=raw,
     )
@@ -620,8 +636,6 @@ async def describe_session_token_usage(
             uncaught.
 
     Notes:
-        - tokenUsage field names are unconfirmed against a live platform;
-          see _extract_token_usage for the candidate-key extraction logic.
         - A session with zero inference turns returns a zeroed summary and
           an empty turns list, not an error.
     """

@@ -953,6 +953,41 @@ class TestDescribeSessionTokenUsageTool:
         assert turn.sequence_number == 1
 
     @pytest.mark.asyncio
+    async def test_token_usage_extracts_cache_fields_from_live_shape(self):
+        """Test tokenUsage extraction against the confirmed live platform shape,
+        including cacheReadTokens/cacheCreationTokens"""
+        mock_service = AsyncMock()
+        mock_service.get_session_messages.return_value = [
+            {
+                "sessionId": "sess-1",
+                "type": "inference-succeeded",
+                "sequenceNumber": 3,
+                "timestamp": None,
+                "text": "...",
+                "data": {
+                    "durationMs": 6747,
+                    "stopReason": "tool_use",
+                    "tokenUsage": {
+                        "inputTokens": 8606,
+                        "outputTokens": 296,
+                        "cacheReadTokens": 120,
+                        "cacheCreationTokens": 40,
+                    },
+                },
+            },
+        ]
+        ctx = _make_context(mock_service)
+
+        result = await agent_session_manager.describe_session_token_usage(ctx, "sess-1")
+
+        turn = result.turns[0]
+        assert turn.token_usage.input_tokens == 8606
+        assert turn.token_usage.output_tokens == 296
+        assert turn.token_usage.cache_read_tokens == 120
+        assert turn.token_usage.cache_creation_tokens == 40
+        assert turn.token_usage.total_tokens == 8902
+
+    @pytest.mark.asyncio
     async def test_token_usage_candidate_key_variant_prompt_completion(self):
         """Test tokenUsage extraction handles promptTokens/completionTokens spelling"""
         mock_service = AsyncMock()

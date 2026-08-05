@@ -516,12 +516,16 @@ class TestSessionTurnTokenUsage:
         usage = SessionTurnTokenUsage(
             input_tokens=100,
             output_tokens=50,
+            cache_read_tokens=20,
+            cache_creation_tokens=5,
             total_tokens=150,
             raw={"inputTokens": 100, "outputTokens": 50},
         )
 
         assert usage.input_tokens == 100
         assert usage.output_tokens == 50
+        assert usage.cache_read_tokens == 20
+        assert usage.cache_creation_tokens == 5
         assert usage.total_tokens == 150
         assert usage.raw == {"inputTokens": 100, "outputTokens": 50}
 
@@ -531,6 +535,8 @@ class TestSessionTurnTokenUsage:
 
         assert usage.input_tokens is None
         assert usage.output_tokens is None
+        assert usage.cache_read_tokens is None
+        assert usage.cache_creation_tokens is None
         assert usage.total_tokens is None
         assert usage.raw is None
 

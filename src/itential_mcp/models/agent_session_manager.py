@@ -712,16 +712,18 @@ class SessionTurnTokenUsage(BaseModel):
     """
     Token usage figures for a single agent inference turn.
 
-    tokenUsage's exact field names are unconfirmed against a live platform
-    (no schema exists in the swagger beyond a prose mention), so this model
-    is populated defensively via candidate-key extraction with a raw dict
-    passthrough as a safety net.
+    Confirmed live against a real inference-succeeded event: the platform's
+    tokenUsage keys are inputTokens, outputTokens, cacheReadTokens, and
+    cacheCreationTokens. Extraction still checks a couple of alternate key
+    spellings defensively, with a raw dict passthrough as a safety net in
+    case a different provider/model uses different names.
 
     Attributes:
-        input_tokens: Input (prompt) tokens for the turn, if present under
-            any recognized key.
-        output_tokens: Output (completion) tokens for the turn, if present
-            under any recognized key.
+        input_tokens: Input (prompt) tokens for the turn.
+        output_tokens: Output (completion) tokens for the turn.
+        cache_read_tokens: Tokens served from prompt cache (cheaper than
+            fresh input tokens).
+        cache_creation_tokens: Tokens written to prompt cache on this turn.
         total_tokens: Total tokens for the turn, if present under any
             recognized key, else derived from input_tokens + output_tokens.
         raw: The untouched original tokenUsage dict, for cases where the
@@ -748,6 +750,32 @@ class SessionTurnTokenUsage(BaseModel):
                 """
                 Output (completion) tokens for this turn; None if not
                 present under any recognized key
+                """
+            ),
+            default=None,
+        ),
+    ]
+
+    cache_read_tokens: Annotated[
+        int | None,
+        Field(
+            description=inspect.cleandoc(
+                """
+                Tokens served from prompt cache on this turn; None if not
+                reported
+                """
+            ),
+            default=None,
+        ),
+    ]
+
+    cache_creation_tokens: Annotated[
+        int | None,
+        Field(
+            description=inspect.cleandoc(
+                """
+                Tokens written to prompt cache on this turn; None if not
+                reported
                 """
             ),
             default=None,
