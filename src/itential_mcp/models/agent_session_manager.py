@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import inspect
 
-from typing import Annotated
+from typing import Annotated, Any
 
 from pydantic import BaseModel, Field, RootModel
 
@@ -95,6 +95,9 @@ class SessionElement(BaseModel):
         started_at: ISO 8601 start timestamp.
         end_time: ISO 8601 end timestamp (None if still running).
         duration_ms: Total session duration in milliseconds.
+        total_input_tokens: Total input (prompt) tokens consumed by the session.
+        total_output_tokens: Total output (completion) tokens produced by the
+            session.
     """
 
     session_id: Annotated[
@@ -162,6 +165,32 @@ class SessionElement(BaseModel):
             description=inspect.cleandoc(
                 """
                 Total session duration in milliseconds
+                """
+            ),
+            default=None,
+        ),
+    ]
+
+    total_input_tokens: Annotated[
+        int | None,
+        Field(
+            description=inspect.cleandoc(
+                """
+                Total input (prompt) tokens consumed by the session; None if
+                not reported by the platform
+                """
+            ),
+            default=None,
+        ),
+    ]
+
+    total_output_tokens: Annotated[
+        int | None,
+        Field(
+            description=inspect.cleandoc(
+                """
+                Total output (completion) tokens produced by the session;
+                None if not reported by the platform
                 """
             ),
             default=None,
@@ -304,6 +333,651 @@ class DescribeSessionResponse(BaseModel):
             description=inspect.cleandoc(
                 """
                 Ordered list of session event messages captured during agent execution
+                """
+            ),
+            default_factory=list,
+        ),
+    ]
+
+
+class AgentTokenUsageStats(BaseModel):
+    """
+    Aggregated token usage statistics for a single agent.
+
+    Summarizes token consumption across all agent sessions grouped by agent
+    name, including totals, averages, and min/max values for both input and
+    output tokens. Sessions with missing token data are still counted toward
+    session_count but contribute 0 to the token sums, averages, and min/max
+    calculations.
+
+    Attributes:
+        agent_name: Agent display name; None if the underlying sessions had
+            no agentSnapshot.name.
+        session_count: Number of sessions included in this group.
+        total_input_tokens: Sum of input tokens across all sessions in the group.
+        total_output_tokens: Sum of output tokens across all sessions in the group.
+        total_tokens: Sum of total_input_tokens and total_output_tokens.
+        avg_input_tokens: Average input tokens per session in the group.
+        min_input_tokens: Minimum input tokens across sessions in the group.
+        max_input_tokens: Maximum input tokens across sessions in the group.
+        avg_output_tokens: Average output tokens per session in the group.
+        min_output_tokens: Minimum output tokens across sessions in the group.
+        max_output_tokens: Maximum output tokens across sessions in the group.
+        total_duration_ms: Sum of session durations across the group.
+        avg_duration_ms: Average session duration in the group.
+        min_duration_ms: Minimum session duration in the group.
+        max_duration_ms: Maximum session duration in the group.
+    """
+
+    agent_name: Annotated[
+        str | None,
+        Field(
+            description=inspect.cleandoc(
+                """
+                Agent display name; None if the underlying sessions had no
+                agentSnapshot.name
+                """
+            )
+        ),
+    ]
+
+    session_count: Annotated[
+        int,
+        Field(
+            description=inspect.cleandoc(
+                """
+                Number of sessions included in this group
+                """
+            )
+        ),
+    ]
+
+    total_input_tokens: Annotated[
+        int,
+        Field(
+            description=inspect.cleandoc(
+                """
+                Sum of input tokens across all sessions in the group; missing
+                or null values are treated as 0
+                """
+            )
+        ),
+    ]
+
+    total_output_tokens: Annotated[
+        int,
+        Field(
+            description=inspect.cleandoc(
+                """
+                Sum of output tokens across all sessions in the group; missing
+                or null values are treated as 0
+                """
+            )
+        ),
+    ]
+
+    total_tokens: Annotated[
+        int,
+        Field(
+            description=inspect.cleandoc(
+                """
+                Sum of total_input_tokens and total_output_tokens
+                """
+            )
+        ),
+    ]
+
+    avg_input_tokens: Annotated[
+        float,
+        Field(
+            description=inspect.cleandoc(
+                """
+                Average input tokens per session in the group
+                """
+            )
+        ),
+    ]
+
+    min_input_tokens: Annotated[
+        int,
+        Field(
+            description=inspect.cleandoc(
+                """
+                Minimum input tokens across sessions in the group
+                """
+            )
+        ),
+    ]
+
+    max_input_tokens: Annotated[
+        int,
+        Field(
+            description=inspect.cleandoc(
+                """
+                Maximum input tokens across sessions in the group
+                """
+            )
+        ),
+    ]
+
+    avg_output_tokens: Annotated[
+        float,
+        Field(
+            description=inspect.cleandoc(
+                """
+                Average output tokens per session in the group
+                """
+            )
+        ),
+    ]
+
+    min_output_tokens: Annotated[
+        int,
+        Field(
+            description=inspect.cleandoc(
+                """
+                Minimum output tokens across sessions in the group
+                """
+            )
+        ),
+    ]
+
+    max_output_tokens: Annotated[
+        int,
+        Field(
+            description=inspect.cleandoc(
+                """
+                Maximum output tokens across sessions in the group
+                """
+            )
+        ),
+    ]
+
+    total_duration_ms: Annotated[
+        int,
+        Field(
+            description=inspect.cleandoc(
+                """
+                Sum of session durations across the group; missing or null
+                values are treated as 0
+                """
+            )
+        ),
+    ]
+
+    avg_duration_ms: Annotated[
+        float,
+        Field(
+            description=inspect.cleandoc(
+                """
+                Average session duration in milliseconds across the group
+                """
+            )
+        ),
+    ]
+
+    min_duration_ms: Annotated[
+        int,
+        Field(
+            description=inspect.cleandoc(
+                """
+                Minimum session duration in milliseconds across the group
+                """
+            )
+        ),
+    ]
+
+    max_duration_ms: Annotated[
+        int,
+        Field(
+            description=inspect.cleandoc(
+                """
+                Maximum session duration in milliseconds across the group
+                """
+            )
+        ),
+    ]
+
+
+class GetAgentTokenUsageResponse(RootModel):
+    """
+    Response model for the agent token usage aggregation endpoint.
+
+    Wraps a list of AgentTokenUsageStats objects, one per distinct agent name
+    (including a None-keyed entry for sessions with no agent name), sorted by
+    total_tokens descending.
+
+    Attributes:
+        root: List of AgentTokenUsageStats objects with aggregated token
+            usage metrics per agent.
+    """
+
+    root: Annotated[
+        list[AgentTokenUsageStats],
+        Field(
+            description=inspect.cleandoc(
+                """
+                List of per-agent token usage aggregation objects, sorted by
+                total_tokens descending
+                """
+            ),
+            default_factory=list,
+        ),
+    ]
+
+
+class AgentSessionTokenUsageElement(BaseModel):
+    """
+    Represents per-session token usage for a single agent session.
+
+    Provides a time-series-friendly, non-aggregated view of one session's
+    token consumption and timing, for use alongside get_agent_token_usage's
+    aggregate statistics.
+
+    Attributes:
+        session_id: Unique session identifier.
+        status: Session status (RUNNING, COMPLETE, FAILED).
+        started_at: ISO 8601 start timestamp.
+        end_time: ISO 8601 end timestamp (None if still running).
+        duration_ms: Total session duration in milliseconds.
+        total_input_tokens: Total input (prompt) tokens consumed.
+        total_output_tokens: Total output (completion) tokens produced.
+        total_tokens: Sum of total_input_tokens and total_output_tokens.
+    """
+
+    session_id: Annotated[
+        str,
+        Field(
+            description=inspect.cleandoc(
+                """
+                Unique session identifier
+                """
+            )
+        ),
+    ]
+
+    status: Annotated[
+        str,
+        Field(
+            description=inspect.cleandoc(
+                """
+                Session status (RUNNING, COMPLETE, FAILED)
+                """
+            )
+        ),
+    ]
+
+    started_at: Annotated[
+        str | None,
+        Field(
+            description=inspect.cleandoc(
+                """
+                ISO 8601 start timestamp
+                """
+            ),
+            default=None,
+        ),
+    ]
+
+    end_time: Annotated[
+        str | None,
+        Field(
+            description=inspect.cleandoc(
+                """
+                ISO 8601 end timestamp; None if the session is still RUNNING
+                """
+            ),
+            default=None,
+        ),
+    ]
+
+    duration_ms: Annotated[
+        int | None,
+        Field(
+            description=inspect.cleandoc(
+                """
+                Total session duration in milliseconds
+                """
+            ),
+            default=None,
+        ),
+    ]
+
+    total_input_tokens: Annotated[
+        int | None,
+        Field(
+            description=inspect.cleandoc(
+                """
+                Total input (prompt) tokens consumed by the session; None if
+                not reported by the platform
+                """
+            ),
+            default=None,
+        ),
+    ]
+
+    total_output_tokens: Annotated[
+        int | None,
+        Field(
+            description=inspect.cleandoc(
+                """
+                Total output (completion) tokens produced by the session;
+                None if not reported by the platform
+                """
+            ),
+            default=None,
+        ),
+    ]
+
+    total_tokens: Annotated[
+        int,
+        Field(
+            description=inspect.cleandoc(
+                """
+                Sum of total_input_tokens and total_output_tokens; missing or
+                null values are treated as 0
+                """
+            )
+        ),
+    ]
+
+
+class GetAgentSessionTokenUsageResponse(RootModel):
+    """
+    Response model for the per-session agent token usage endpoint.
+
+    Wraps a list of AgentSessionTokenUsageElement objects for a single agent,
+    sorted by started_at ascending.
+
+    Attributes:
+        root: List of AgentSessionTokenUsageElement objects with per-session
+            token usage and timing metadata.
+    """
+
+    root: Annotated[
+        list[AgentSessionTokenUsageElement],
+        Field(
+            description=inspect.cleandoc(
+                """
+                List of per-session token usage objects for a single agent,
+                sorted by started_at ascending
+                """
+            ),
+            default_factory=list,
+        ),
+    ]
+
+
+class SessionTurnTokenUsage(BaseModel):
+    """
+    Token usage figures for a single agent inference turn.
+
+    tokenUsage's exact field names are unconfirmed against a live platform
+    (no schema exists in the swagger beyond a prose mention), so this model
+    is populated defensively via candidate-key extraction with a raw dict
+    passthrough as a safety net.
+
+    Attributes:
+        input_tokens: Input (prompt) tokens for the turn, if present under
+            any recognized key.
+        output_tokens: Output (completion) tokens for the turn, if present
+            under any recognized key.
+        total_tokens: Total tokens for the turn, if present under any
+            recognized key, else derived from input_tokens + output_tokens.
+        raw: The untouched original tokenUsage dict, for cases where the
+            real key names differ from the recognized candidates.
+    """
+
+    input_tokens: Annotated[
+        int | None,
+        Field(
+            description=inspect.cleandoc(
+                """
+                Input (prompt) tokens for this turn; None if not present
+                under any recognized key
+                """
+            ),
+            default=None,
+        ),
+    ]
+
+    output_tokens: Annotated[
+        int | None,
+        Field(
+            description=inspect.cleandoc(
+                """
+                Output (completion) tokens for this turn; None if not
+                present under any recognized key
+                """
+            ),
+            default=None,
+        ),
+    ]
+
+    total_tokens: Annotated[
+        int | None,
+        Field(
+            description=inspect.cleandoc(
+                """
+                Total tokens for this turn; None if not present under any
+                recognized key and not derivable from input/output tokens
+                """
+            ),
+            default=None,
+        ),
+    ]
+
+    raw: Annotated[
+        dict[str, Any] | None,
+        Field(
+            description=inspect.cleandoc(
+                """
+                Untouched original tokenUsage dict; safety net if the real
+                platform key names differ from the recognized candidates
+                """
+            ),
+            default=None,
+        ),
+    ]
+
+
+class SessionTurnUsageElement(BaseModel):
+    """
+    Represents a single inference turn (succeeded or failed) within a session.
+
+    Attributes:
+        sequence_number: Ordering number for the turn within the session.
+        timestamp: ISO 8601 timestamp when the turn was emitted.
+        event_type: Turn outcome, "succeeded" or "failed".
+        duration_ms: Duration of the inference call in milliseconds.
+        token_usage: Token usage for succeeded turns; None for failed turns.
+        error: Error text for failed turns; None for succeeded turns.
+    """
+
+    sequence_number: Annotated[
+        int | None,
+        Field(
+            description=inspect.cleandoc(
+                """
+                Ordering number for this turn within the session
+                """
+            ),
+            default=None,
+        ),
+    ]
+
+    timestamp: Annotated[
+        str | None,
+        Field(
+            description=inspect.cleandoc(
+                """
+                ISO 8601 timestamp when this turn was emitted
+                """
+            ),
+            default=None,
+        ),
+    ]
+
+    event_type: Annotated[
+        str,
+        Field(
+            description=inspect.cleandoc(
+                """
+                Turn outcome, "succeeded" or "failed"
+                """
+            )
+        ),
+    ]
+
+    duration_ms: Annotated[
+        int | None,
+        Field(
+            description=inspect.cleandoc(
+                """
+                Duration of the inference call in milliseconds
+                """
+            ),
+            default=None,
+        ),
+    ]
+
+    token_usage: Annotated[
+        SessionTurnTokenUsage | None,
+        Field(
+            description=inspect.cleandoc(
+                """
+                Token usage for succeeded turns; None for failed turns
+                """
+            ),
+            default=None,
+        ),
+    ]
+
+    error: Annotated[
+        str | None,
+        Field(
+            description=inspect.cleandoc(
+                """
+                Error text for failed turns; None for succeeded turns
+                """
+            ),
+            default=None,
+        ),
+    ]
+
+
+class SessionTurnUsageSummary(BaseModel):
+    """
+    Aggregated summary across all inference turns in a session.
+
+    Attributes:
+        session_id: Unique session identifier.
+        turn_count: Number of inference turns (succeeded and failed).
+        total_duration_ms: Sum of turn durations; missing treated as 0.
+        total_input_tokens: Sum of input tokens across succeeded turns;
+            missing treated as 0.
+        total_output_tokens: Sum of output tokens across succeeded turns;
+            missing treated as 0.
+        total_tokens: Sum of total_input_tokens and total_output_tokens.
+    """
+
+    session_id: Annotated[
+        str,
+        Field(
+            description=inspect.cleandoc(
+                """
+                Unique session identifier
+                """
+            )
+        ),
+    ]
+
+    turn_count: Annotated[
+        int,
+        Field(
+            description=inspect.cleandoc(
+                """
+                Number of inference turns (succeeded and failed) in the
+                session
+                """
+            )
+        ),
+    ]
+
+    total_duration_ms: Annotated[
+        int,
+        Field(
+            description=inspect.cleandoc(
+                """
+                Sum of turn durations in milliseconds; missing or null
+                values are treated as 0
+                """
+            )
+        ),
+    ]
+
+    total_input_tokens: Annotated[
+        int,
+        Field(
+            description=inspect.cleandoc(
+                """
+                Sum of input tokens across succeeded turns; missing or null
+                values are treated as 0
+                """
+            )
+        ),
+    ]
+
+    total_output_tokens: Annotated[
+        int,
+        Field(
+            description=inspect.cleandoc(
+                """
+                Sum of output tokens across succeeded turns; missing or null
+                values are treated as 0
+                """
+            )
+        ),
+    ]
+
+    total_tokens: Annotated[
+        int,
+        Field(
+            description=inspect.cleandoc(
+                """
+                Sum of total_input_tokens and total_output_tokens
+                """
+            )
+        ),
+    ]
+
+
+class DescribeSessionTokenUsageResponse(BaseModel):
+    """
+    Response model for the per-turn session token usage breakdown endpoint.
+
+    Attributes:
+        summary: Aggregated totals across all inference turns in the session.
+        turns: Ordered list of per-turn usage details.
+    """
+
+    summary: Annotated[
+        SessionTurnUsageSummary,
+        Field(
+            description=inspect.cleandoc(
+                """
+                Aggregated totals across all inference turns in the session
+                """
+            )
+        ),
+    ]
+
+    turns: Annotated[
+        list[SessionTurnUsageElement],
+        Field(
+            description=inspect.cleandoc(
+                """
+                Ordered list of per-turn usage details
                 """
             ),
             default_factory=list,

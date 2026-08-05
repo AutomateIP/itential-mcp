@@ -65,6 +65,8 @@ class TestGetSessions:
                     "startedAt": "2025-06-01T10:00:00Z",
                     "endTime": "2025-06-01T10:01:00Z",
                     "durationMs": 60000,
+                    "totalInputTokens": 150,
+                    "totalOutputTokens": 75,
                 },
                 {
                     "sessionId": "sess-002",
@@ -84,8 +86,14 @@ class TestGetSessions:
         assert result[0]["agent_name"] == "agent-a"
         assert result[0]["status"] == "COMPLETE"
         assert result[0]["duration_ms"] == 60000
+        assert result[0]["total_input_tokens"] == 150
+        assert result[0]["total_output_tokens"] == 75
         assert result[1]["session_id"] == "sess-002"
         assert result[1]["end_time"] is None
+        # Second item's raw payload omits token fields entirely; should
+        # come through as None rather than raising.
+        assert result[1]["total_input_tokens"] is None
+        assert result[1]["total_output_tokens"] is None
 
     @pytest.mark.asyncio
     async def test_get_sessions_agent_name_filter_client_side(
