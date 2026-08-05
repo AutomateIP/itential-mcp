@@ -45,6 +45,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   for any redirect URI not literally ending in that path (e.g. `/callback`,
   `/sso/oauth/return`) and silently produced a callback URL that never
   matched what was registered with the upstream IdP (#391)
+- Update `ipsdk` to 0.8.0 and adjust internal tests for its now-read-only
+  `IpsdkError.request`/`.response` attributes; no `src/` behavior change,
+  since existing error-handling code only ever reads these attributes (#389)
+
+### Note
+- 9 Dependabot advisories remain open and untouched by this release,
+  including 3 new high-severity `cryptography` advisories surfaced
+  2026-08-04. The `cryptography` pin (`>=46.0.7,<47`, see 0.13.1/0.13.2
+  notes) is still deliberately held at the 46.x line pending evaluation of
+  47.x/48.x breaking API changes; not yet re-assessed against the new
+  high-severity findings.
 
 ## [0.13.2] - 2026-08-03
 
