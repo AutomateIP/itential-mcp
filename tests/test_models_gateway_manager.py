@@ -11,6 +11,9 @@ from itential_mcp.models.gateway_manager import (
     GatewayElement,
     GetGatewaysResponse,
     RunServiceResponse,
+    ExportGatewayConfigurationResponse,
+    ImportSummary,
+    ImportGatewayConfigurationResponse,
 )
 
 
@@ -678,6 +681,115 @@ class TestRunServiceResponse:
         )
 
         assert response.elapsed_time == -1.0
+
+
+class TestExportGatewayConfigurationResponse:
+    """Test cases for ExportGatewayConfigurationResponse model"""
+
+    def test_export_gateway_configuration_response_valid_document(self):
+        """Test creating ExportGatewayConfigurationResponse with a valid document"""
+        document = {
+            "version": "1.0",
+            "resources": [{"type": "service", "name": "svc-1"}],
+        }
+
+        response = ExportGatewayConfigurationResponse(document)
+        assert response.root == document
+
+    def test_export_gateway_configuration_response_empty_document(self):
+        """Test ExportGatewayConfigurationResponse with an empty document"""
+        response = ExportGatewayConfigurationResponse({})
+        assert response.root == {}
+
+    def test_export_gateway_configuration_response_serialization(self):
+        """Test ExportGatewayConfigurationResponse serializes directly as a dict"""
+        document = {"key": "value"}
+        response = ExportGatewayConfigurationResponse(document)
+
+        serialized = response.model_dump()
+        assert isinstance(serialized, dict)
+        assert serialized == document
+
+    def test_export_gateway_configuration_response_invalid_type(self):
+        """Test ExportGatewayConfigurationResponse rejects non-dict input"""
+        with pytest.raises(ValidationError):
+            ExportGatewayConfigurationResponse("not a dict")
+
+
+class TestImportSummary:
+    """Test cases for ImportSummary model"""
+
+    def test_import_summary_defaults(self):
+        """Test ImportSummary default values"""
+        summary = ImportSummary()
+        assert summary.added == 0
+        assert summary.replaced == 0
+        assert summary.skipped == 0
+
+    def test_import_summary_explicit_values(self):
+        """Test ImportSummary with explicit values"""
+        summary = ImportSummary(added=3, replaced=1, skipped=2)
+        assert summary.added == 3
+        assert summary.replaced == 1
+        assert summary.skipped == 2
+
+    def test_import_summary_field_validation(self):
+        """Test ImportSummary field type validation"""
+        with pytest.raises(ValidationError):
+            ImportSummary(added="not-an-int")
+
+
+class TestImportGatewayConfigurationResponse:
+    """Test cases for ImportGatewayConfigurationResponse model"""
+
+    def test_import_gateway_configuration_response_defaults(self):
+        """Test ImportGatewayConfigurationResponse default values"""
+        response = ImportGatewayConfigurationResponse()
+        assert response.added == []
+        assert response.replaced == []
+        assert response.skipped == []
+        assert response.summary is None
+
+    def test_import_gateway_configuration_response_full(self):
+        """Test ImportGatewayConfigurationResponse with all fields populated"""
+        response = ImportGatewayConfigurationResponse(
+            added=["res_1"],
+            replaced=["res_2"],
+            skipped=["res_3"],
+            summary=ImportSummary(added=1, replaced=1, skipped=1),
+        )
+        assert response.added == ["res_1"]
+        assert response.replaced == ["res_2"]
+        assert response.skipped == ["res_3"]
+        assert response.summary.added == 1
+
+    def test_import_gateway_configuration_response_summary_as_dict(self):
+        """Test ImportGatewayConfigurationResponse accepts a dict for summary"""
+        response = ImportGatewayConfigurationResponse(
+            added=[], replaced=[], skipped=[], summary={"added": 2}
+        )
+        assert isinstance(response.summary, ImportSummary)
+        assert response.summary.added == 2
+        assert response.summary.replaced == 0
+
+    def test_import_gateway_configuration_response_empty_dict_permissive(self):
+        """Test that an empty dict does not fail validation (permissive model)"""
+        response = ImportGatewayConfigurationResponse(**{})
+        assert response.added == []
+        assert response.replaced == []
+        assert response.skipped == []
+        assert response.summary is None
+
+    def test_import_gateway_configuration_response_undocumented_shape(self):
+        """Test that an undocumented dry-run diff shape doesn't crash validation"""
+        # Simulates an unknown check=true diff response shape - unrecognized
+        # keys should be ignored rather than raising a validation error.
+        undocumented = {"diff": {"unexpected": "shape"}, "other_field": 123}
+        response = ImportGatewayConfigurationResponse(**undocumented)
+        assert response.added == []
+        assert response.replaced == []
+        assert response.skipped == []
+        assert response.summary is None
 
 
 class TestModelInteroperability:

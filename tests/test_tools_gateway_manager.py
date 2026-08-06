@@ -7,15 +7,30 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock
 
 from fastmcp import Context
+from fastmcp.server.elicitation import (
+    AcceptedElicitation,
+    CancelledElicitation,
+    DeclinedElicitation,
+)
 
-from itential_mcp.tools.gateway_manager import get_services, get_gateways, run_service
+from itential_mcp.tools.gateway_manager import (
+    get_services,
+    get_gateways,
+    run_service,
+    export_gateway_configuration,
+    import_gateway_configuration,
+    _export_contains_sensitive_data,
+)
 from itential_mcp.models.gateway_manager import (
     ServiceElement,
     GetServicesResponse,
     GatewayElement,
     GetGatewaysResponse,
     RunServiceResponse,
+    ExportGatewayConfigurationResponse,
+    ImportGatewayConfigurationResponse,
 )
+from itential_mcp.core.exceptions import AuthorizationException, ValidationException
 
 
 class TestGatewayManagerTools:
@@ -34,6 +49,8 @@ class TestGatewayManagerTools:
         self.mock_gateway_manager_service.get_services = AsyncMock()
         self.mock_gateway_manager_service.get_gateways = AsyncMock()
         self.mock_gateway_manager_service.run_service = AsyncMock()
+        self.mock_gateway_manager_service.export_configuration = AsyncMock()
+        self.mock_gateway_manager_service.import_configuration = AsyncMock()
 
         # Attach gateway manager service to client
         self.mock_client.gateway_manager = self.mock_gateway_manager_service
@@ -722,6 +739,536 @@ class TestRunService(TestGatewayManagerTools):
         assert "Процесс завершен успешно" in result.stdout["messages"]
         assert "Opération réussie 🎉" in result.stdout["messages"]
         assert "Attention: mode de test activé ⚠️" in result.stderr
+
+
+class TestExportGatewayConfiguration(TestGatewayManagerTools):
+    """Test cases for export_gateway_configuration function."""
+
+    def test_export_gateway_configuration_function_exists(self):
+        """Test that export_gateway_configuration function exists and is callable."""
+        assert callable(export_gateway_configuration)
+
+    @pytest.mark.asyncio
+    async def test_export_gateway_configuration_success(self):
+        """Test successful export returns the expected wrapped model."""
+        document = {
+            "version": "1.0",
+            "resources": [{"type": "service", "name": "svc-1"}],
+        }
+        self.mock_client.gateway_manager.export_configuration.return_value = document
+
+        result = await export_gateway_configuration(
+            self.mock_context, cluster_id="cluster_1"
+        )
+
+        self.mock_context.debug.assert_called_once_with(
+            "inside export_gateway_configuration(...)"
+        )
+        self.mock_client.gateway_manager.export_configuration.assert_called_once_with(
+            "cluster_1"
+        )
+
+        assert isinstance(result, ExportGatewayConfigurationResponse)
+        assert result.root == document
+
+    @pytest.mark.asyncio
+    async def test_export_gateway_configuration_client_error(self):
+        """Test export_gateway_configuration when client raises an exception."""
+        self.mock_client.gateway_manager.export_configuration.side_effect = Exception(
+            "Gateway not connected"
+        )
+
+        with pytest.raises(Exception, match="Gateway not connected"):
+            await export_gateway_configuration(
+                self.mock_context, cluster_id="cluster_1"
+            )
+
+    @pytest.mark.asyncio
+    async def test_export_gateway_configuration_non_sensitive_no_elicit(self):
+        """Non-sensitive export returns normally without elicitation."""
+        document = {
+            "decorators": [],
+            "executable-objects": [],
+            "mcp_servers": [],
+            "registries": [],
+            "repositories": [],
+            "secret-providers": [],
+            "services": [{"name": "svc-1"}],
+        }
+        self.mock_client.gateway_manager.export_configuration.return_value = document
+        self.mock_context.session = MagicMock()
+        self.mock_context.session.check_client_capability = MagicMock()
+        self.mock_context.elicit = AsyncMock()
+
+        result = await export_gateway_configuration(
+            self.mock_context, cluster_id="cluster_1"
+        )
+
+        assert isinstance(result, ExportGatewayConfigurationResponse)
+        assert result.root == document
+        self.mock_context.elicit.assert_not_called()
+        self.mock_context.session.check_client_capability.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_export_gateway_configuration_top_level_secrets_accept(self):
+        """Sensitive top-level secrets + capable client + accept returns data."""
+        document = {
+            "secrets": [{"name": "sec1", "value": "enc-value"}],
+            "users": [],
+            "services": [],
+        }
+        self.mock_client.gateway_manager.export_configuration.return_value = document
+        self.mock_context.session = MagicMock()
+        self.mock_context.session.check_client_capability = MagicMock(return_value=True)
+        self.mock_context.elicit = AsyncMock(
+            return_value=AcceptedElicitation(data=True)
+        )
+
+        result = await export_gateway_configuration(
+            self.mock_context, cluster_id="cluster_1"
+        )
+
+        assert isinstance(result, ExportGatewayConfigurationResponse)
+        assert result.root == document
+        self.mock_context.elicit.assert_called_once()
+        self.mock_context.session.check_client_capability.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_export_gateway_configuration_top_level_users_accept(self):
+        """Sensitive top-level users (no secrets) + capable client + accept."""
+        document = {
+            "users": [{"name": "admin", "password": "hash"}],
+            "secrets": [],
+            "services": [],
+        }
+        self.mock_client.gateway_manager.export_configuration.return_value = document
+        self.mock_context.session = MagicMock()
+        self.mock_context.session.check_client_capability = MagicMock(return_value=True)
+        self.mock_context.elicit = AsyncMock(
+            return_value=AcceptedElicitation(data=True)
+        )
+
+        result = await export_gateway_configuration(
+            self.mock_context, cluster_id="cluster_1"
+        )
+
+        assert isinstance(result, ExportGatewayConfigurationResponse)
+        assert result.root == document
+        self.mock_context.elicit.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_export_gateway_configuration_nested_service_secrets_accept(self):
+        """Nested per-service secrets (no top-level secrets/users) still triggers."""
+        document = {
+            "services": [
+                {"name": "svc-1", "secrets": []},
+                {"name": "svc-2", "secrets": [{"name": "sec1"}]},
+            ],
+        }
+        self.mock_client.gateway_manager.export_configuration.return_value = document
+        self.mock_context.session = MagicMock()
+        self.mock_context.session.check_client_capability = MagicMock(return_value=True)
+        self.mock_context.elicit = AsyncMock(
+            return_value=AcceptedElicitation(data=True)
+        )
+
+        result = await export_gateway_configuration(
+            self.mock_context, cluster_id="cluster_1"
+        )
+
+        assert isinstance(result, ExportGatewayConfigurationResponse)
+        assert result.root == document
+        self.mock_context.elicit.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_export_gateway_configuration_declined_raises(self):
+        """DeclinedElicitation raises AuthorizationException."""
+        document = {"secrets": [{"name": "sec1"}]}
+        self.mock_client.gateway_manager.export_configuration.return_value = document
+        self.mock_context.session = MagicMock()
+        self.mock_context.session.check_client_capability = MagicMock(return_value=True)
+        self.mock_context.elicit = AsyncMock(return_value=DeclinedElicitation())
+
+        with pytest.raises(AuthorizationException):
+            await export_gateway_configuration(
+                self.mock_context, cluster_id="cluster_1"
+            )
+
+    @pytest.mark.asyncio
+    async def test_export_gateway_configuration_cancelled_raises(self):
+        """CancelledElicitation raises AuthorizationException."""
+        document = {"secrets": [{"name": "sec1"}]}
+        self.mock_client.gateway_manager.export_configuration.return_value = document
+        self.mock_context.session = MagicMock()
+        self.mock_context.session.check_client_capability = MagicMock(return_value=True)
+        self.mock_context.elicit = AsyncMock(return_value=CancelledElicitation())
+
+        with pytest.raises(AuthorizationException):
+            await export_gateway_configuration(
+                self.mock_context, cluster_id="cluster_1"
+            )
+
+    @pytest.mark.asyncio
+    async def test_export_gateway_configuration_accepted_false_raises(self):
+        """AcceptedElicitation(data=False) raises AuthorizationException."""
+        document = {"secrets": [{"name": "sec1"}]}
+        self.mock_client.gateway_manager.export_configuration.return_value = document
+        self.mock_context.session = MagicMock()
+        self.mock_context.session.check_client_capability = MagicMock(return_value=True)
+        self.mock_context.elicit = AsyncMock(
+            return_value=AcceptedElicitation(data=False)
+        )
+
+        with pytest.raises(AuthorizationException):
+            await export_gateway_configuration(
+                self.mock_context, cluster_id="cluster_1"
+            )
+
+    @pytest.mark.asyncio
+    async def test_export_gateway_configuration_unrecognized_result_raises(self):
+        """An unrecognized elicitation result raises AuthorizationException.
+
+        This proves the fail-closed guarantee does not implicitly depend on
+        ctx.elicit() only ever returning one of the known elicitation result
+        types -- if it ever returned something else, the function must still
+        raise rather than fall through the match and return None.
+        """
+        document = {"secrets": [{"name": "sec1"}]}
+        self.mock_client.gateway_manager.export_configuration.return_value = document
+        self.mock_context.session = MagicMock()
+        self.mock_context.session.check_client_capability = MagicMock(return_value=True)
+        self.mock_context.elicit = AsyncMock(return_value=object())
+
+        with pytest.raises(AuthorizationException):
+            await export_gateway_configuration(
+                self.mock_context, cluster_id="cluster_1"
+            )
+
+    @pytest.mark.asyncio
+    async def test_export_gateway_configuration_incapable_client_raises(self):
+        """Incapable client raises AuthorizationException without calling elicit."""
+        document = {"secrets": [{"name": "sec1"}]}
+        self.mock_client.gateway_manager.export_configuration.return_value = document
+        self.mock_context.session = MagicMock()
+        self.mock_context.session.check_client_capability = MagicMock(
+            return_value=False
+        )
+        self.mock_context.elicit = AsyncMock()
+
+        with pytest.raises(AuthorizationException):
+            await export_gateway_configuration(
+                self.mock_context, cluster_id="cluster_1"
+            )
+
+        self.mock_context.elicit.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_export_gateway_configuration_private_key_name_not_sensitive(self):
+        """A repositories entry with private-key-name alone does not trigger."""
+        document = {
+            "repositories": [
+                {"name": "repo-1", "private-key-name": "my-ssh-key"},
+            ],
+            "services": [],
+        }
+        self.mock_client.gateway_manager.export_configuration.return_value = document
+        self.mock_context.session = MagicMock()
+        self.mock_context.session.check_client_capability = MagicMock()
+        self.mock_context.elicit = AsyncMock()
+
+        result = await export_gateway_configuration(
+            self.mock_context, cluster_id="cluster_1"
+        )
+
+        assert isinstance(result, ExportGatewayConfigurationResponse)
+        assert result.root == document
+        self.mock_context.elicit.assert_not_called()
+        self.mock_context.session.check_client_capability.assert_not_called()
+
+
+class TestExportContainsSensitiveData:
+    """Direct unit tests for the _export_contains_sensitive_data helper."""
+
+    def test_empty_dict(self):
+        """An empty document is not sensitive."""
+        assert _export_contains_sensitive_data({}) is False
+
+    def test_top_level_secrets_only(self):
+        """Non-empty top-level secrets triggers detection."""
+        document = {"secrets": [{"name": "sec1", "value": "enc"}]}
+        assert _export_contains_sensitive_data(document) is True
+
+    def test_top_level_users_only(self):
+        """Non-empty top-level users triggers detection."""
+        document = {"users": [{"name": "admin", "password": "hash"}]}
+        assert _export_contains_sensitive_data(document) is True
+
+    def test_nested_service_secrets_only(self):
+        """A service entry with non-empty secrets triggers detection."""
+        document = {
+            "services": [
+                {"name": "svc-1", "secrets": []},
+                {"name": "svc-2", "secrets": [{"name": "sec1"}]},
+            ]
+        }
+        assert _export_contains_sensitive_data(document) is True
+
+    def test_private_key_name_alone_not_sensitive(self):
+        """A repositories entry with private-key-name alone is not sensitive."""
+        document = {
+            "repositories": [{"name": "repo-1", "private-key-name": "my-ssh-key"}]
+        }
+        assert _export_contains_sensitive_data(document) is False
+
+    def test_fully_clean_document(self):
+        """A fully populated but non-sensitive document is not sensitive."""
+        document = {
+            "decorators": [{"name": "dec-1"}],
+            "executable-objects": [{"name": "obj-1"}],
+            "mcp_servers": [{"name": "mcp-1"}],
+            "registries": [{"name": "reg-1"}],
+            "repositories": [{"name": "repo-1", "private-key-name": "my-ssh-key"}],
+            "secret-providers": [],
+            "secrets": [],
+            "services": [{"name": "svc-1", "secrets": []}],
+            "users": [],
+        }
+        assert _export_contains_sensitive_data(document) is False
+
+
+class TestImportGatewayConfiguration(TestGatewayManagerTools):
+    """Test cases for import_gateway_configuration function."""
+
+    def test_import_gateway_configuration_function_exists(self):
+        """Test that import_gateway_configuration function exists and is callable."""
+        assert callable(import_gateway_configuration)
+
+    @pytest.mark.asyncio
+    async def test_import_gateway_configuration_content_source_success(self):
+        """Test valid content-source call succeeds."""
+        expected_result = {
+            "added": ["res_1"],
+            "replaced": [],
+            "skipped": [],
+            "summary": {"added": 1, "replaced": 0, "skipped": 0},
+        }
+        self.mock_client.gateway_manager.import_configuration.return_value = (
+            expected_result
+        )
+
+        result = await import_gateway_configuration(
+            self.mock_context,
+            cluster_id="cluster_1",
+            content={"version": "1.0"},
+            git_url=None,
+            git_file=None,
+            git_reference=None,
+            git_username=None,
+            git_password=None,
+            git_private_key=None,
+            force=False,
+            validate=False,
+            check=False,
+        )
+
+        self.mock_client.gateway_manager.import_configuration.assert_called_once_with(
+            "cluster_1",
+            source="content",
+            content={"version": "1.0"},
+            git=None,
+            force=False,
+            validate=False,
+            check=False,
+        )
+
+        assert isinstance(result, ImportGatewayConfigurationResponse)
+        assert result.added == ["res_1"]
+        assert result.summary.added == 1
+
+    @pytest.mark.asyncio
+    async def test_import_gateway_configuration_git_source_all_fields(self):
+        """Test valid git-source call succeeds with all git_* fields."""
+        expected_result = {"added": [], "replaced": [], "skipped": []}
+        self.mock_client.gateway_manager.import_configuration.return_value = (
+            expected_result
+        )
+
+        result = await import_gateway_configuration(
+            self.mock_context,
+            cluster_id="cluster_1",
+            content=None,
+            git_url="https://example.com/repo.git",
+            git_file="config.yml",
+            git_reference="main",
+            git_username="user",
+            git_password="pass",
+            git_private_key="/path/to/key",
+            force=True,
+            validate=False,
+            check=False,
+        )
+
+        expected_git = {
+            "url": "https://example.com/repo.git",
+            "file": "config.yml",
+            "reference": "main",
+            "username": "user",
+            "password": "pass",
+            "privateKey": "/path/to/key",
+        }
+        self.mock_client.gateway_manager.import_configuration.assert_called_once_with(
+            "cluster_1",
+            source="git",
+            content=None,
+            git=expected_git,
+            force=True,
+            validate=False,
+            check=False,
+        )
+
+        assert isinstance(result, ImportGatewayConfigurationResponse)
+
+    @pytest.mark.asyncio
+    async def test_import_gateway_configuration_git_source_minimal(self):
+        """Test valid git-source call succeeds with only git_url and git_file."""
+        expected_result = {"added": [], "replaced": [], "skipped": []}
+        self.mock_client.gateway_manager.import_configuration.return_value = (
+            expected_result
+        )
+
+        await import_gateway_configuration(
+            self.mock_context,
+            cluster_id="cluster_1",
+            content=None,
+            git_url="https://example.com/repo.git",
+            git_file="config.yml",
+            git_reference=None,
+            git_username=None,
+            git_password=None,
+            git_private_key=None,
+            force=False,
+            validate=False,
+            check=False,
+        )
+
+        expected_git = {
+            "url": "https://example.com/repo.git",
+            "file": "config.yml",
+        }
+        self.mock_client.gateway_manager.import_configuration.assert_called_once_with(
+            "cluster_1",
+            source="git",
+            content=None,
+            git=expected_git,
+            force=False,
+            validate=False,
+            check=False,
+        )
+
+    @pytest.mark.asyncio
+    async def test_import_gateway_configuration_validate_and_check_raises(self):
+        """Test validate=True and check=True together raises ValidationException."""
+        with pytest.raises(ValidationException):
+            await import_gateway_configuration(
+                self.mock_context,
+                cluster_id="cluster_1",
+                content={"version": "1.0"},
+                git_url=None,
+                git_file=None,
+                git_reference=None,
+                git_username=None,
+                git_password=None,
+                git_private_key=None,
+                force=False,
+                validate=True,
+                check=True,
+            )
+
+        self.mock_client.gateway_manager.import_configuration.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_import_gateway_configuration_content_and_git_raises(self):
+        """Test content set AND git_url set together raises ValidationException."""
+        with pytest.raises(ValidationException):
+            await import_gateway_configuration(
+                self.mock_context,
+                cluster_id="cluster_1",
+                content={"version": "1.0"},
+                git_url="https://example.com/repo.git",
+                git_file=None,
+                git_reference=None,
+                git_username=None,
+                git_password=None,
+                git_private_key=None,
+                force=False,
+                validate=False,
+                check=False,
+            )
+
+        self.mock_client.gateway_manager.import_configuration.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_import_gateway_configuration_no_source_raises(self):
+        """Test neither content nor git_url set raises ValidationException."""
+        with pytest.raises(ValidationException):
+            await import_gateway_configuration(
+                self.mock_context,
+                cluster_id="cluster_1",
+                content=None,
+                git_url=None,
+                git_file=None,
+                git_reference=None,
+                git_username=None,
+                git_password=None,
+                git_private_key=None,
+                force=False,
+                validate=False,
+                check=False,
+            )
+
+        self.mock_client.gateway_manager.import_configuration.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_import_gateway_configuration_git_url_without_git_file_raises(self):
+        """Test git_url set without git_file raises ValidationException."""
+        with pytest.raises(ValidationException):
+            await import_gateway_configuration(
+                self.mock_context,
+                cluster_id="cluster_1",
+                content=None,
+                git_url="https://example.com/repo.git",
+                git_file=None,
+                git_reference=None,
+                git_username=None,
+                git_password=None,
+                git_private_key=None,
+                force=False,
+                validate=False,
+                check=False,
+            )
+
+        self.mock_client.gateway_manager.import_configuration.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_import_gateway_configuration_git_file_without_git_url_raises(self):
+        """Test git_file set without git_url raises ValidationException."""
+        with pytest.raises(ValidationException):
+            await import_gateway_configuration(
+                self.mock_context,
+                cluster_id="cluster_1",
+                content=None,
+                git_url=None,
+                git_file="config.yml",
+                git_reference=None,
+                git_username=None,
+                git_password=None,
+                git_private_key=None,
+                force=False,
+                validate=False,
+                check=False,
+            )
+
+        self.mock_client.gateway_manager.import_configuration.assert_not_called()
 
 
 class TestGatewayManagerToolsModule:

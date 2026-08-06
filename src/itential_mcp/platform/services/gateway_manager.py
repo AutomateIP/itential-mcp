@@ -1066,6 +1066,91 @@ class Service(ServiceBase):
         res = await self.client.get("/gateway_manager/v1/health/status")
         return res.json()
 
+    async def export_configuration(self, cluster_id: str) -> Mapping[str, Any]:
+        """
+        Export a gateway cluster's full DB configuration as a DSL document.
+
+        The gateway must be connected and active. The returned document can
+        be passed unchanged as the content of a future import.
+
+        Args:
+            cluster_id (str): The cluster ID of the target gateway
+
+        Returns:
+            Mapping[str, Any]: The exported DSL configuration document
+
+        Raises:
+            HTTPError: If the API request fails
+            NotFoundError: If the cluster doesn't exist
+            ConnectionException: If the gateway is not connected
+
+        Example:
+            document = await client.gateway_manager.export_configuration("cluster_1")
+        """
+        res = await self.client.get(
+            f"/gateway_manager/v1/gateways/{cluster_id}/configuration/export"
+        )
+        return res.json()
+
+    async def import_configuration(
+        self,
+        cluster_id: str,
+        *,
+        source: str,
+        content: dict | str | None = None,
+        git: dict[str, Any] | None = None,
+        force: bool = False,
+        validate: bool = False,
+        check: bool = False,
+    ) -> Mapping[str, Any]:
+        """
+        Import a DB configuration into a connected gateway cluster.
+
+        The configuration content may be supplied inline (source="content")
+        or fetched from a git repository (source="git"). The gateway must be
+        connected and active.
+
+        Args:
+            cluster_id (str): The cluster ID of the target gateway.
+            source: The import source, either "content" or "git".
+            content: Inline DSL document, required if source is "content". Defaults to None.
+            git: Git repository options, required if source is "git". Defaults to None.
+            force: Overwrite existing resources. Defaults to False.
+            validate: Parse and validate only, with no writes. Defaults to False.
+            check: Dry-run diff showing what would change, with no writes. Defaults to False.
+
+        Returns:
+            Mapping[str, Any]: The import result summary
+
+        Raises:
+            HTTPError: If the API request fails
+            NotFoundError: If the cluster doesn't exist
+            ValidationException: If the configuration content is invalid
+            ConnectionException: If the gateway is not connected
+
+        Example:
+            result = await client.gateway_manager.import_configuration(
+                "cluster_1", source="content", content=document
+            )
+        """
+        options: dict[str, Any] = {
+            "source": source,
+            "force": force,
+            "validate": validate,
+            "check": check,
+        }
+
+        if content is not None:
+            options["content"] = content
+        if git is not None:
+            options["git"] = git
+
+        res = await self.client.post(
+            f"/gateway_manager/v1/gateways/{cluster_id}/configuration/import",
+            json={"options": options},
+        )
+        return res.json()
+
     async def get_version(self) -> Mapping[str, Any]:
         """
         Get the version information for Gateway Manager.
