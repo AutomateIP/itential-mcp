@@ -284,6 +284,12 @@ async def export_gateway_configuration(
                 "secrets or user credentials and confirmation was not "
                 "granted"
             )
+        case _:
+            raise exceptions.AuthorizationException(
+                "export refused: received an unexpected or unrecognized "
+                "elicitation result while confirming the gateway "
+                "configuration export"
+            )
 
 
 async def import_gateway_configuration(

@@ -925,6 +925,26 @@ class TestExportGatewayConfiguration(TestGatewayManagerTools):
             )
 
     @pytest.mark.asyncio
+    async def test_export_gateway_configuration_unrecognized_result_raises(self):
+        """An unrecognized elicitation result raises AuthorizationException.
+
+        This proves the fail-closed guarantee does not implicitly depend on
+        ctx.elicit() only ever returning one of the known elicitation result
+        types -- if it ever returned something else, the function must still
+        raise rather than fall through the match and return None.
+        """
+        document = {"secrets": [{"name": "sec1"}]}
+        self.mock_client.gateway_manager.export_configuration.return_value = document
+        self.mock_context.session = MagicMock()
+        self.mock_context.session.check_client_capability = MagicMock(return_value=True)
+        self.mock_context.elicit = AsyncMock(return_value=object())
+
+        with pytest.raises(AuthorizationException):
+            await export_gateway_configuration(
+                self.mock_context, cluster_id="cluster_1"
+            )
+
+    @pytest.mark.asyncio
     async def test_export_gateway_configuration_incapable_client_raises(self):
         """Incapable client raises AuthorizationException without calling elicit."""
         document = {"secrets": [{"name": "sec1"}]}
