@@ -1734,6 +1734,205 @@ class TestGetHealthStatus:
         assert result["status"] == "healthy"
 
 
+class TestExportConfiguration:
+    """Test cases for the export_configuration method"""
+
+    @pytest.fixture
+    def mock_client(self):
+        """Create a mock client for testing"""
+        client = AsyncMock()
+        return client
+
+    @pytest.fixture
+    def service(self, mock_client):
+        """Create a Service instance with mocked client"""
+        service = Service(mock_client)
+        return service
+
+    @pytest.mark.asyncio
+    async def test_export_configuration_success(self, service, mock_client):
+        """Test successful configuration export with raw dict passthrough"""
+        cluster_id = "cluster_1"
+        expected_document = {
+            "version": "1.0",
+            "resources": [{"type": "service", "name": "svc-1"}],
+        }
+
+        mock_response = MagicMock()
+        mock_response.json.return_value = expected_document
+        mock_client.get.return_value = mock_response
+
+        result = await service.export_configuration(cluster_id)
+
+        mock_client.get.assert_called_once_with(
+            f"/gateway_manager/v1/gateways/{cluster_id}/configuration/export"
+        )
+        assert result == expected_document
+
+    @pytest.mark.asyncio
+    async def test_export_configuration_client_error(self, service, mock_client):
+        """Test configuration export with client error"""
+        mock_client.get.side_effect = Exception("Gateway not connected")
+
+        with pytest.raises(Exception, match="Gateway not connected"):
+            await service.export_configuration("cluster_1")
+
+
+class TestImportConfiguration:
+    """Test cases for the import_configuration method"""
+
+    @pytest.fixture
+    def mock_client(self):
+        """Create a mock client for testing"""
+        client = AsyncMock()
+        return client
+
+    @pytest.fixture
+    def service(self, mock_client):
+        """Create a Service instance with mocked client"""
+        service = Service(mock_client)
+        return service
+
+    @pytest.mark.asyncio
+    async def test_import_configuration_content_source(self, service, mock_client):
+        """Test import with inline content source"""
+        cluster_id = "cluster_1"
+        content = {"version": "1.0", "resources": []}
+        expected_result = {
+            "added": ["res_1"],
+            "replaced": [],
+            "skipped": [],
+            "summary": {"added": 1, "replaced": 0, "skipped": 0},
+        }
+
+        mock_response = MagicMock()
+        mock_response.json.return_value = expected_result
+        mock_client.post.return_value = mock_response
+
+        result = await service.import_configuration(
+            cluster_id, source="content", content=content
+        )
+
+        expected_body = {
+            "options": {
+                "source": "content",
+                "force": False,
+                "validate": False,
+                "check": False,
+                "content": content,
+            }
+        }
+        mock_client.post.assert_called_once_with(
+            f"/gateway_manager/v1/gateways/{cluster_id}/configuration/import",
+            json=expected_body,
+        )
+        assert result == expected_result
+
+    @pytest.mark.asyncio
+    async def test_import_configuration_git_source(self, service, mock_client):
+        """Test import with git repository source"""
+        cluster_id = "cluster_1"
+        git = {
+            "url": "https://example.com/repo.git",
+            "file": "config.yml",
+            "reference": "main",
+            "username": "user",
+            "password": "pass",
+            "privateKey": "/path/to/key",
+        }
+        expected_result = {"added": [], "replaced": [], "skipped": []}
+
+        mock_response = MagicMock()
+        mock_response.json.return_value = expected_result
+        mock_client.post.return_value = mock_response
+
+        result = await service.import_configuration(cluster_id, source="git", git=git)
+
+        expected_body = {
+            "options": {
+                "source": "git",
+                "force": False,
+                "validate": False,
+                "check": False,
+                "git": git,
+            }
+        }
+        mock_client.post.assert_called_once_with(
+            f"/gateway_manager/v1/gateways/{cluster_id}/configuration/import",
+            json=expected_body,
+        )
+        assert result == expected_result
+
+    @pytest.mark.asyncio
+    async def test_import_configuration_force_validate_check_passthrough(
+        self, service, mock_client
+    ):
+        """Test that force, validate, and check flags pass through to the request body"""
+        cluster_id = "cluster_1"
+        content = {"version": "1.0"}
+        expected_result = {"added": [], "replaced": [], "skipped": []}
+
+        mock_response = MagicMock()
+        mock_response.json.return_value = expected_result
+        mock_client.post.return_value = mock_response
+
+        await service.import_configuration(
+            cluster_id,
+            source="content",
+            content=content,
+            force=True,
+            validate=True,
+            check=False,
+        )
+
+        expected_body = {
+            "options": {
+                "source": "content",
+                "force": True,
+                "validate": True,
+                "check": False,
+                "content": content,
+            }
+        }
+        mock_client.post.assert_called_once_with(
+            f"/gateway_manager/v1/gateways/{cluster_id}/configuration/import",
+            json=expected_body,
+        )
+
+    @pytest.mark.asyncio
+    async def test_import_configuration_response_passthrough(
+        self, service, mock_client
+    ):
+        """Test that the raw API response is passed through unchanged"""
+        cluster_id = "cluster_1"
+        expected_result = {
+            "added": ["a"],
+            "replaced": ["b"],
+            "skipped": ["c"],
+            "summary": {"added": 1, "replaced": 1, "skipped": 1},
+        }
+
+        mock_response = MagicMock()
+        mock_response.json.return_value = expected_result
+        mock_client.post.return_value = mock_response
+
+        result = await service.import_configuration(
+            cluster_id, source="content", content={"key": "value"}
+        )
+
+        assert result == expected_result
+
+    @pytest.mark.asyncio
+    async def test_import_configuration_client_error(self, service, mock_client):
+        """Test configuration import with client error"""
+        mock_client.post.side_effect = Exception("Gateway not connected")
+
+        with pytest.raises(Exception, match="Gateway not connected"):
+            await service.import_configuration(
+                "cluster_1", source="content", content={}
+            )
+
+
 class TestGetVersion:
     """Test cases for the get_version method"""
 

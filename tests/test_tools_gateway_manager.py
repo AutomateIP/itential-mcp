@@ -8,14 +8,23 @@ from unittest.mock import AsyncMock, MagicMock
 
 from fastmcp import Context
 
-from itential_mcp.tools.gateway_manager import get_services, get_gateways, run_service
+from itential_mcp.tools.gateway_manager import (
+    get_services,
+    get_gateways,
+    run_service,
+    export_gateway_configuration,
+    import_gateway_configuration,
+)
 from itential_mcp.models.gateway_manager import (
     ServiceElement,
     GetServicesResponse,
     GatewayElement,
     GetGatewaysResponse,
     RunServiceResponse,
+    ExportGatewayConfigurationResponse,
+    ImportGatewayConfigurationResponse,
 )
+from itential_mcp.core.exceptions import ValidationException
 
 
 class TestGatewayManagerTools:
@@ -34,6 +43,8 @@ class TestGatewayManagerTools:
         self.mock_gateway_manager_service.get_services = AsyncMock()
         self.mock_gateway_manager_service.get_gateways = AsyncMock()
         self.mock_gateway_manager_service.run_service = AsyncMock()
+        self.mock_gateway_manager_service.export_configuration = AsyncMock()
+        self.mock_gateway_manager_service.import_configuration = AsyncMock()
 
         # Attach gateway manager service to client
         self.mock_client.gateway_manager = self.mock_gateway_manager_service
@@ -722,6 +733,284 @@ class TestRunService(TestGatewayManagerTools):
         assert "Процесс завершен успешно" in result.stdout["messages"]
         assert "Opération réussie 🎉" in result.stdout["messages"]
         assert "Attention: mode de test activé ⚠️" in result.stderr
+
+
+class TestExportGatewayConfiguration(TestGatewayManagerTools):
+    """Test cases for export_gateway_configuration function."""
+
+    def test_export_gateway_configuration_function_exists(self):
+        """Test that export_gateway_configuration function exists and is callable."""
+        assert callable(export_gateway_configuration)
+
+    @pytest.mark.asyncio
+    async def test_export_gateway_configuration_success(self):
+        """Test successful export returns the expected wrapped model."""
+        document = {
+            "version": "1.0",
+            "resources": [{"type": "service", "name": "svc-1"}],
+        }
+        self.mock_client.gateway_manager.export_configuration.return_value = document
+
+        result = await export_gateway_configuration(
+            self.mock_context, cluster_id="cluster_1"
+        )
+
+        self.mock_context.debug.assert_called_once_with(
+            "inside export_gateway_configuration(...)"
+        )
+        self.mock_client.gateway_manager.export_configuration.assert_called_once_with(
+            "cluster_1"
+        )
+
+        assert isinstance(result, ExportGatewayConfigurationResponse)
+        assert result.root == document
+
+    @pytest.mark.asyncio
+    async def test_export_gateway_configuration_client_error(self):
+        """Test export_gateway_configuration when client raises an exception."""
+        self.mock_client.gateway_manager.export_configuration.side_effect = Exception(
+            "Gateway not connected"
+        )
+
+        with pytest.raises(Exception, match="Gateway not connected"):
+            await export_gateway_configuration(
+                self.mock_context, cluster_id="cluster_1"
+            )
+
+
+class TestImportGatewayConfiguration(TestGatewayManagerTools):
+    """Test cases for import_gateway_configuration function."""
+
+    def test_import_gateway_configuration_function_exists(self):
+        """Test that import_gateway_configuration function exists and is callable."""
+        assert callable(import_gateway_configuration)
+
+    @pytest.mark.asyncio
+    async def test_import_gateway_configuration_content_source_success(self):
+        """Test valid content-source call succeeds."""
+        expected_result = {
+            "added": ["res_1"],
+            "replaced": [],
+            "skipped": [],
+            "summary": {"added": 1, "replaced": 0, "skipped": 0},
+        }
+        self.mock_client.gateway_manager.import_configuration.return_value = (
+            expected_result
+        )
+
+        result = await import_gateway_configuration(
+            self.mock_context,
+            cluster_id="cluster_1",
+            content={"version": "1.0"},
+            git_url=None,
+            git_file=None,
+            git_reference=None,
+            git_username=None,
+            git_password=None,
+            git_private_key=None,
+            force=False,
+            validate=False,
+            check=False,
+        )
+
+        self.mock_client.gateway_manager.import_configuration.assert_called_once_with(
+            "cluster_1",
+            source="content",
+            content={"version": "1.0"},
+            git=None,
+            force=False,
+            validate=False,
+            check=False,
+        )
+
+        assert isinstance(result, ImportGatewayConfigurationResponse)
+        assert result.added == ["res_1"]
+        assert result.summary.added == 1
+
+    @pytest.mark.asyncio
+    async def test_import_gateway_configuration_git_source_all_fields(self):
+        """Test valid git-source call succeeds with all git_* fields."""
+        expected_result = {"added": [], "replaced": [], "skipped": []}
+        self.mock_client.gateway_manager.import_configuration.return_value = (
+            expected_result
+        )
+
+        result = await import_gateway_configuration(
+            self.mock_context,
+            cluster_id="cluster_1",
+            content=None,
+            git_url="https://example.com/repo.git",
+            git_file="config.yml",
+            git_reference="main",
+            git_username="user",
+            git_password="pass",
+            git_private_key="/path/to/key",
+            force=True,
+            validate=False,
+            check=False,
+        )
+
+        expected_git = {
+            "url": "https://example.com/repo.git",
+            "file": "config.yml",
+            "reference": "main",
+            "username": "user",
+            "password": "pass",
+            "privateKey": "/path/to/key",
+        }
+        self.mock_client.gateway_manager.import_configuration.assert_called_once_with(
+            "cluster_1",
+            source="git",
+            content=None,
+            git=expected_git,
+            force=True,
+            validate=False,
+            check=False,
+        )
+
+        assert isinstance(result, ImportGatewayConfigurationResponse)
+
+    @pytest.mark.asyncio
+    async def test_import_gateway_configuration_git_source_minimal(self):
+        """Test valid git-source call succeeds with only git_url and git_file."""
+        expected_result = {"added": [], "replaced": [], "skipped": []}
+        self.mock_client.gateway_manager.import_configuration.return_value = (
+            expected_result
+        )
+
+        await import_gateway_configuration(
+            self.mock_context,
+            cluster_id="cluster_1",
+            content=None,
+            git_url="https://example.com/repo.git",
+            git_file="config.yml",
+            git_reference=None,
+            git_username=None,
+            git_password=None,
+            git_private_key=None,
+            force=False,
+            validate=False,
+            check=False,
+        )
+
+        expected_git = {
+            "url": "https://example.com/repo.git",
+            "file": "config.yml",
+        }
+        self.mock_client.gateway_manager.import_configuration.assert_called_once_with(
+            "cluster_1",
+            source="git",
+            content=None,
+            git=expected_git,
+            force=False,
+            validate=False,
+            check=False,
+        )
+
+    @pytest.mark.asyncio
+    async def test_import_gateway_configuration_validate_and_check_raises(self):
+        """Test validate=True and check=True together raises ValidationException."""
+        with pytest.raises(ValidationException):
+            await import_gateway_configuration(
+                self.mock_context,
+                cluster_id="cluster_1",
+                content={"version": "1.0"},
+                git_url=None,
+                git_file=None,
+                git_reference=None,
+                git_username=None,
+                git_password=None,
+                git_private_key=None,
+                force=False,
+                validate=True,
+                check=True,
+            )
+
+        self.mock_client.gateway_manager.import_configuration.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_import_gateway_configuration_content_and_git_raises(self):
+        """Test content set AND git_url set together raises ValidationException."""
+        with pytest.raises(ValidationException):
+            await import_gateway_configuration(
+                self.mock_context,
+                cluster_id="cluster_1",
+                content={"version": "1.0"},
+                git_url="https://example.com/repo.git",
+                git_file=None,
+                git_reference=None,
+                git_username=None,
+                git_password=None,
+                git_private_key=None,
+                force=False,
+                validate=False,
+                check=False,
+            )
+
+        self.mock_client.gateway_manager.import_configuration.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_import_gateway_configuration_no_source_raises(self):
+        """Test neither content nor git_url set raises ValidationException."""
+        with pytest.raises(ValidationException):
+            await import_gateway_configuration(
+                self.mock_context,
+                cluster_id="cluster_1",
+                content=None,
+                git_url=None,
+                git_file=None,
+                git_reference=None,
+                git_username=None,
+                git_password=None,
+                git_private_key=None,
+                force=False,
+                validate=False,
+                check=False,
+            )
+
+        self.mock_client.gateway_manager.import_configuration.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_import_gateway_configuration_git_url_without_git_file_raises(self):
+        """Test git_url set without git_file raises ValidationException."""
+        with pytest.raises(ValidationException):
+            await import_gateway_configuration(
+                self.mock_context,
+                cluster_id="cluster_1",
+                content=None,
+                git_url="https://example.com/repo.git",
+                git_file=None,
+                git_reference=None,
+                git_username=None,
+                git_password=None,
+                git_private_key=None,
+                force=False,
+                validate=False,
+                check=False,
+            )
+
+        self.mock_client.gateway_manager.import_configuration.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_import_gateway_configuration_git_file_without_git_url_raises(self):
+        """Test git_file set without git_url raises ValidationException."""
+        with pytest.raises(ValidationException):
+            await import_gateway_configuration(
+                self.mock_context,
+                cluster_id="cluster_1",
+                content=None,
+                git_url=None,
+                git_file="config.yml",
+                git_reference=None,
+                git_username=None,
+                git_password=None,
+                git_private_key=None,
+                force=False,
+                validate=False,
+                check=False,
+            )
+
+        self.mock_client.gateway_manager.import_configuration.assert_not_called()
 
 
 class TestGatewayManagerToolsModule:

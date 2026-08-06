@@ -197,6 +197,137 @@ class GetGatewaysResponse(RootModel):
     ]
 
 
+class ExportGatewayConfigurationResponse(RootModel):
+    """Response model for the export gateway configuration API endpoint.
+
+    This root model wraps the opaque DSL document returned by the platform.
+    The document shape is not defined by the platform's API contract, so it
+    is passed through unchanged.
+
+    Attributes:
+        root: The exported DSL configuration document.
+    """
+
+    root: Annotated[
+        dict[str, Any],
+        Field(
+            description=inspect.cleandoc(
+                """
+                The exported DSL configuration document
+                """
+            )
+        ),
+    ]
+
+
+class ImportSummary(BaseModel):
+    """Aggregate counts for an import gateway configuration operation.
+
+    Attributes:
+        added: Number of resources added.
+        replaced: Number of resources replaced.
+        skipped: Number of resources skipped.
+    """
+
+    added: Annotated[
+        int,
+        Field(
+            description=inspect.cleandoc(
+                """
+                Number of resources added
+                """
+            ),
+            default=0,
+        ),
+    ]
+
+    replaced: Annotated[
+        int,
+        Field(
+            description=inspect.cleandoc(
+                """
+                Number of resources replaced
+                """
+            ),
+            default=0,
+        ),
+    ]
+
+    skipped: Annotated[
+        int,
+        Field(
+            description=inspect.cleandoc(
+                """
+                Number of resources skipped
+                """
+            ),
+            default=0,
+        ),
+    ]
+
+
+class ImportGatewayConfigurationResponse(BaseModel):
+    """Response model for the import gateway configuration API endpoint.
+
+    All fields are optional so that an undocumented dry-run (check=true)
+    diff shape does not fail validation.
+
+    Attributes:
+        added: Resources added by the import.
+        replaced: Resources replaced by the import.
+        skipped: Resources skipped by the import.
+        summary: Aggregate counts for the import.
+    """
+
+    added: Annotated[
+        list[Any],
+        Field(
+            description=inspect.cleandoc(
+                """
+                Resources added by the import
+                """
+            ),
+            default_factory=list,
+        ),
+    ]
+
+    replaced: Annotated[
+        list[Any],
+        Field(
+            description=inspect.cleandoc(
+                """
+                Resources replaced by the import
+                """
+            ),
+            default_factory=list,
+        ),
+    ]
+
+    skipped: Annotated[
+        list[Any],
+        Field(
+            description=inspect.cleandoc(
+                """
+                Resources skipped by the import
+                """
+            ),
+            default_factory=list,
+        ),
+    ]
+
+    summary: Annotated[
+        ImportSummary | None,
+        Field(
+            description=inspect.cleandoc(
+                """
+                Aggregate counts for the import
+                """
+            ),
+            default=None,
+        ),
+    ]
+
+
 class RunServiceResponse(BaseModel):
     """Response model for the run service API operation.
 
