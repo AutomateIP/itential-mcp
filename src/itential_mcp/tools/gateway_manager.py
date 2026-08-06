@@ -7,6 +7,13 @@ from typing import Annotated, Any
 from pydantic import Field
 
 from fastmcp import Context
+from fastmcp.server.elicitation import (
+    AcceptedElicitation,
+    CancelledElicitation,
+    DeclinedElicitation,
+)
+
+from mcp.types import ClientCapabilities, ElicitationCapability
 
 from itential_mcp.utilities import json as jsonutils
 from itential_mcp.core import exceptions
@@ -15,6 +22,40 @@ from itential_mcp.models import gateway_manager as models
 
 
 __tags__ = ("gateway_manager",)
+
+
+# Top-level document keys that indicate the presence of secret or credential
+# material in a gateway configuration export.
+_SENSITIVE_EXPORT_KEYS = ("secrets", "users")
+
+
+def _export_contains_sensitive_data(document: dict[str, Any]) -> bool:
+    """
+    Determine whether a gateway configuration export contains sensitive data
+
+    Checks the top-level document for non-empty `secrets` or `users` fields,
+    as well as any nested `secrets` field on individual entries in the
+    `services` list, since a service entry may reference secret material
+    independently of the top-level `secrets` list.
+
+    Args:
+        document (dict[str, Any]): The exported gateway configuration
+            document
+
+    Returns:
+        bool: True if the document contains secrets or user credentials,
+            False otherwise
+    """
+    if any(document.get(key) for key in _SENSITIVE_EXPORT_KEYS):
+        return True
+
+    services = document.get("services")
+    if isinstance(services, list):
+        for service in services:
+            if isinstance(service, dict) and service.get("secrets"):
+                return True
+
+    return False
 
 
 async def get_services(
@@ -185,7 +226,8 @@ async def export_gateway_configuration(
 
     The gateway must be connected and active. The returned document can be
     passed unchanged as the content of a future import_gateway_configuration
-    call.
+    call. If the export contains secrets or user credentials, this may
+    prompt for explicit confirmation via MCP elicitation before returning.
 
     Args:
         ctx (Context): The FastMCP Context object
@@ -196,6 +238,10 @@ async def export_gateway_configuration(
             document
 
     Raises:
+        AuthorizationException: If the export contains secrets or user
+            credentials and the operator declines confirmation, or if the
+            connected client does not support the required confirmation
+            prompt
         Exception: If there is an error exporting the configuration from
             Gateway Manager
     """
@@ -205,7 +251,39 @@ async def export_gateway_configuration(
 
     document = await client.gateway_manager.export_configuration(cluster_id)
 
-    return models.ExportGatewayConfigurationResponse(document)
+    if not _export_contains_sensitive_data(document):
+        return models.ExportGatewayConfigurationResponse(document)
+
+    if not ctx.session.check_client_capability(
+        ClientCapabilities(elicitation=ElicitationCapability())
+    ):
+        raise exceptions.AuthorizationException(
+            "the exported gateway configuration contains secrets or user "
+            "credentials, but the connected client does not support the "
+            "confirmation prompt required to return it"
+        )
+
+    result = await ctx.elicit(
+        message=(
+            "This gateway configuration export contains secrets or user "
+            "credentials. Confirm to proceed and return the export?"
+        ),
+        response_type=bool,
+    )
+
+    match result:
+        case AcceptedElicitation(data=True):
+            return models.ExportGatewayConfigurationResponse(document)
+        case (
+            AcceptedElicitation(data=False)
+            | DeclinedElicitation()
+            | CancelledElicitation()
+        ):
+            raise exceptions.AuthorizationException(
+                "export declined: the gateway configuration contains "
+                "secrets or user credentials and confirmation was not "
+                "granted"
+            )
 
 
 async def import_gateway_configuration(
