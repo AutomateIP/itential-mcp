@@ -41,7 +41,8 @@ class Service(ServiceBase):
         Returns:
             list[dict]: A list of dictionaries containing session data with
                 normalized field names: session_id, agent_name, status,
-                started_at, end_time, duration_ms.
+                started_at, end_time, duration_ms, total_input_tokens,
+                total_output_tokens.
 
         Raises:
             Exception: If there is an error communicating with the Itential
@@ -74,6 +75,8 @@ class Service(ServiceBase):
                         "started_at": item.get("startedAt"),
                         "end_time": item.get("endTime"),
                         "duration_ms": item.get("durationMs"),
+                        "total_input_tokens": item.get("totalInputTokens"),
+                        "total_output_tokens": item.get("totalOutputTokens"),
                     }
                 )
 
