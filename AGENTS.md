@@ -100,10 +100,10 @@ make format         # Format with ruff
 make check          # Lint with ruff check
 make coverage       # HTML + terminal coverage report
 make security       # bandit security scan
-make premerge       # Full pipeline: clean → format → check → security → test
+make ci             # Full pipeline: clean → format → check → security → test
 ```
 
-**Before every commit:** `make premerge` — this is what CI runs.
+**Before every commit:** `make ci` — this is what CI runs.
 
 **Running the server locally:**
 
@@ -130,7 +130,7 @@ itential-mcp [--config FILE]
 ```bash
 make tox            # Test against Python 3.10, 3.11, 3.12, 3.13
 make tox-py312      # Single version
-make tox-premerge   # Full premerge pipeline via tox
+make tox-ci         # Full CI pipeline via tox
 ```
 
 **Environment variables for local dev:**
@@ -238,7 +238,7 @@ Config objects are frozen Pydantic dataclasses — attempting to set attributes 
 2. Create `src/itential_mcp/models/my_feature.py` with response models
 3. If the tool needs API calls, add `src/itential_mcp/platform/services/my_feature.py` with a `Service` class having `name = "my_feature"`
 4. Write tests in `tests/test_tools_my_feature.py`
-5. Run `make premerge`
+5. Run `make ci`
 
 Tools are discovered automatically — no registration code needed.
 
@@ -369,9 +369,9 @@ docs/mcp.conf.example           Config file reference
 
 **Pipelines:** `.github/workflows/`
 
-- `premerge.yaml` — format → lint → check-headers → security → test. Runs on every PR.
+- `ci.yaml` — format → lint → check-headers → security → test. Runs on every PR.
 - `container.yaml` — builds amd64 + arm64 images on merge to main branches.
-- `release.yaml` — publishes to PyPI via OIDC trusted publisher on GitHub release creation.
+- `release.yaml` — triggered by a tag push; automatically creates the GitHub Release (via `softprops/action-gh-release`) AND publishes to PyPI via OIDC trusted publisher in the same run. No manual `gh release create` step needed.
 
 **Dependabot** is configured for Python dependencies.
 
