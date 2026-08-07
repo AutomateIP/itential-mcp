@@ -6,7 +6,7 @@
 
 ## Purpose & Architecture
 
-Itential MCP is a production-grade Model Context Protocol (MCP) server that bridges AI agents with the Itential Platform — a network automation and orchestration system. It exposes 56+ tools across 10 functional categories (health, device config, workflow execution, lifecycle management, adapters, applications, compliance, projects, gateway, operations), allowing AI agents to configure devices, execute workflows, run compliance checks, and monitor platform health through a standardized MCP interface.
+Itential MCP is a production-grade Model Context Protocol (MCP) server that bridges AI agents with the Itential Platform — a network automation and orchestration system. It exposes 76+ tools across 10 functional categories (health, device config, workflow execution, lifecycle management, adapters, applications, compliance, projects, gateway, operations), allowing AI agents to configure devices, execute workflows, run compliance checks, and monitor platform health through a standardized MCP interface.
 
 **Primary data flow:**
 
@@ -237,10 +237,40 @@ Config objects are frozen Pydantic dataclasses — attempting to set attributes 
 1. Create `src/itential_mcp/tools/my_feature.py` with `__tags__` and async functions returning Pydantic models
 2. Create `src/itential_mcp/models/my_feature.py` with response models
 3. If the tool needs API calls, add `src/itential_mcp/platform/services/my_feature.py` with a `Service` class having `name = "my_feature"`
-4. Write tests in `tests/test_tools_my_feature.py`
-5. Run `make ci`
+4. Decorate every tool function with `@annotate(...)` from `itential_mcp.utilities.tool`, declaring at minimum `read_only` (or `destructive`) correctly. A tool that mutates or destroys platform state must never default to looking safe — never leave `readOnlyHint` unset/true on a mutating tool, and any destructive operation must set `destructive=True`. This is enforced in CI, not just style guidance: `tests/utilities/test_tool.py` has a completeness guard (`TestToolAnnotationCompleteness`) that fails if any discovered tool lacks `@annotate(...)`, and a safety-invariant test (`TestToolAnnotationSafetyInvariants`) that fails if any tool is simultaneously `readOnlyHint=True` and `destructiveHint=True`.
+5. Write tests in `tests/test_tools_my_feature.py`
+6. Run `make ci`
 
 Tools are discovered automatically — no registration code needed.
+
+**`@annotate(...)` examples:**
+
+Read-only tool (`src/itential_mcp/tools/health.py`):
+
+```python
+from itential_mcp.utilities.tool import annotate
+
+@annotate(read_only=True, idempotent=True, open_world=False, title="Get Health")
+async def get_health(ctx: Context) -> HealthResponse:
+    ...
+```
+
+Destructive tool (`src/itential_mcp/tools/devices.py`):
+
+```python
+@annotate(
+    read_only=False,
+    destructive=True,
+    open_world=True,
+    title="Apply Device Configuration",
+)
+async def apply_device_configuration(
+    ctx: Context,
+    device: str,
+    config: str,
+) -> models.ApplyDeviceConfigurationResponse:
+    ...
+```
 
 ### New Service Plugin
 
