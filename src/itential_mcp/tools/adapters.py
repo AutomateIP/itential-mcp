@@ -9,11 +9,13 @@ from pydantic import Field
 from fastmcp import Context
 
 from itential_mcp.models import adapters as models
+from itential_mcp.utilities.tool import annotate
 
 
 __tags__ = ("adapters",)
 
 
+@annotate(read_only=True, idempotent=True, open_world=False, title="Get Adapters")
 async def get_adapters(
     ctx: Annotated[Context, Field(description="The FastMCP Context object")],
 ) -> models.GetAdaptersResponse:
@@ -49,6 +51,12 @@ async def get_adapters(
     return models.GetAdaptersResponse(elements)
 
 
+@annotate(
+    read_only=False,
+    destructive=True,
+    open_world=True,
+    title="Start Adapter",
+)
 async def start_adapter(
     ctx: Annotated[Context, Field(description="The FastMCP Context object")],
     name: Annotated[str, Field(description="The name of the adapter to start")],
@@ -87,6 +95,12 @@ async def start_adapter(
     return models.StartAdapterResponse(name=data["id"], state=data["state"])
 
 
+@annotate(
+    read_only=False,
+    destructive=True,
+    open_world=True,
+    title="Stop Adapter",
+)
 async def stop_adapter(
     ctx: Annotated[Context, Field(description="The FastMCP Context object")],
     name: Annotated[str, Field(description="The name of the adapter to stop")],
@@ -125,6 +139,12 @@ async def stop_adapter(
     return models.StopAdapterResponse(name=data["id"], state=data["state"])
 
 
+@annotate(
+    read_only=False,
+    destructive=True,
+    open_world=True,
+    title="Restart Adapter",
+)
 async def restart_adapter(
     ctx: Annotated[Context, Field(description="The FastMCP Context object")],
     name: Annotated[str, Field(description="The name of the adapter to restart")],

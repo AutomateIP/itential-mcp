@@ -9,6 +9,7 @@ from pydantic import Field
 from fastmcp import Context
 
 from itential_mcp.models import workflow_engine as models
+from itential_mcp.utilities.tool import annotate
 
 
 __tags__ = ("workflow_engine",)
@@ -48,6 +49,7 @@ async def _get_job_metrics(
     return models.GetJobMetricsResponse(res)
 
 
+@annotate(read_only=True, idempotent=True, open_world=False, title="Get Job Metrics")
 async def get_job_metrics(
     ctx: Annotated[Context, Field(description="The FastMCP Context object")],
 ) -> models.GetJobMetricsResponse:
@@ -75,6 +77,12 @@ async def get_job_metrics(
     return await _get_job_metrics(ctx)
 
 
+@annotate(
+    read_only=True,
+    idempotent=True,
+    open_world=False,
+    title="Get Job Metrics for Workflow",
+)
 async def get_job_metrics_for_workflow(
     ctx: Annotated[Context, Field(description="The FastMCP Context object")],
     name: Annotated[
@@ -145,6 +153,7 @@ async def _get_task_metrics(
     return models.GetTaskMetricsResponse(res)
 
 
+@annotate(read_only=True, idempotent=True, open_world=False, title="Get Task Metrics")
 async def get_task_metrics(
     ctx: Annotated[Context, Field(description="The FastMCP Context object")],
 ) -> models.GetTaskMetricsResponse:
@@ -173,6 +182,12 @@ async def get_task_metrics(
     return await _get_task_metrics(ctx)
 
 
+@annotate(
+    read_only=True,
+    idempotent=True,
+    open_world=False,
+    title="Get Task Metrics for Workflow",
+)
 async def get_task_metrics_for_workflow(
     ctx: Annotated[Context, Field(description="The FastMCP Context object")],
     name: Annotated[
@@ -210,6 +225,12 @@ async def get_task_metrics_for_workflow(
     )
 
 
+@annotate(
+    read_only=True,
+    idempotent=True,
+    open_world=False,
+    title="Get Task Metrics for App",
+)
 async def get_task_metrics_for_app(
     ctx: Annotated[Context, Field(description="The FastMCP Context object")],
     name: Annotated[
@@ -248,6 +269,12 @@ async def get_task_metrics_for_app(
     return await _get_task_metrics(ctx, params={"equalsField": "app", "equals": name})
 
 
+@annotate(
+    read_only=True,
+    idempotent=True,
+    open_world=False,
+    title="Get Task Metrics for Task",
+)
 async def get_task_metrics_for_task(
     ctx: Annotated[Context, Field(description="The FastMCP Context object")],
     name: Annotated[

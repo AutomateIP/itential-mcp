@@ -15,6 +15,7 @@ from fastmcp import Context
 
 from itential_mcp.core.exceptions import ValidationException
 from itential_mcp.utilities import time as timeutils
+from itential_mcp.utilities.tool import annotate
 from itential_mcp.models import agent_session_manager as models
 
 
@@ -181,6 +182,7 @@ def _parse_timestamp(value: str) -> datetime:
         raise ValidationException(f"Invalid ISO 8601 timestamp: {value!r}") from exc
 
 
+@annotate(read_only=True, idempotent=True, open_world=False, title="Get Sessions")
 async def get_sessions(
     ctx: Annotated[Context, Field(description="The FastMCP Context object")],
     agent_name: Annotated[
@@ -248,6 +250,7 @@ async def get_sessions(
     return models.GetSessionsResponse(root=session_elements)
 
 
+@annotate(read_only=True, idempotent=True, open_world=False, title="Describe Session")
 async def describe_session(
     ctx: Annotated[Context, Field(description="The FastMCP Context object")],
     session_id: Annotated[
@@ -332,6 +335,12 @@ async def describe_session(
     )
 
 
+@annotate(
+    read_only=True,
+    idempotent=True,
+    open_world=False,
+    title="Get Agent Token Usage",
+)
 async def get_agent_token_usage(
     ctx: Annotated[Context, Field(description="The FastMCP Context object")],
     agent_name: Annotated[
@@ -480,6 +489,12 @@ async def get_agent_token_usage(
     return models.GetAgentTokenUsageResponse(root=stats)
 
 
+@annotate(
+    read_only=True,
+    idempotent=True,
+    open_world=False,
+    title="Get Agent Session Token Usage",
+)
 async def get_agent_session_token_usage(
     ctx: Annotated[Context, Field(description="The FastMCP Context object")],
     agent_name: Annotated[
@@ -610,6 +625,12 @@ async def get_agent_session_token_usage(
     return models.GetAgentSessionTokenUsageResponse(root=elements)
 
 
+@annotate(
+    read_only=True,
+    idempotent=True,
+    open_world=False,
+    title="Describe Session Token Usage",
+)
 async def describe_session_token_usage(
     ctx: Annotated[Context, Field(description="The FastMCP Context object")],
     session_id: Annotated[

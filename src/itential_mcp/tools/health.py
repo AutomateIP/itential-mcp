@@ -10,11 +10,13 @@ from pydantic import Field
 from fastmcp import Context
 
 from itential_mcp.models.health import HealthResponse
+from itential_mcp.utilities.tool import annotate
 
 
 __tags__ = ("health",)
 
 
+@annotate(read_only=True, idempotent=True, open_world=False, title="Get Health")
 async def get_health(
     ctx: Annotated[Context, Field(description="The FastMCP Context object")],
 ) -> HealthResponse:

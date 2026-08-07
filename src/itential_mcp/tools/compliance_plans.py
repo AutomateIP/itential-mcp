@@ -9,11 +9,18 @@ from pydantic import Field
 from fastmcp import Context
 
 from itential_mcp.models import compliance_plans as models
+from itential_mcp.utilities.tool import annotate
 
 
 __tags__ = ("configuration_manager",)
 
 
+@annotate(
+    read_only=True,
+    idempotent=True,
+    open_world=False,
+    title="Get Compliance Plans",
+)
 async def get_compliance_plans(
     ctx: Annotated[Context, Field(description="The FastMCP Context object")],
 ) -> models.GetCompliancePlansResponse:
@@ -38,6 +45,12 @@ async def get_compliance_plans(
     return models.GetCompliancePlansResponse(plans=results)
 
 
+@annotate(
+    read_only=False,
+    destructive=False,
+    open_world=True,
+    title="Run Compliance Plan",
+)
 async def run_compliance_plan(
     ctx: Annotated[Context, Field(description="The FastMCP Context object")],
     name: Annotated[str, Field(description="The name of the compliance plan to run")],

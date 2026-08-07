@@ -11,11 +11,13 @@ from pydantic import Field
 from fastmcp import Context
 
 from itential_mcp.models import templates as models
+from itential_mcp.utilities.tool import annotate
 
 
 __tags__ = ("automation_studio",)
 
 
+@annotate(read_only=True, idempotent=True, open_world=False, title="Get Templates")
 async def get_templates(
     ctx: Annotated[Context, Field(description="The FastMCP Context object")],
     template_type: Annotated[
@@ -69,6 +71,12 @@ async def get_templates(
     return results
 
 
+@annotate(
+    read_only=True,
+    idempotent=True,
+    open_world=False,
+    title="Describe Template",
+)
 async def describe_template(
     ctx: Annotated[Context, Field(description="The FastMCP Context object")],
     name: Annotated[str, Field(description="The name of the template to describe")],
@@ -117,6 +125,12 @@ async def describe_template(
     )
 
 
+@annotate(
+    read_only=False,
+    destructive=False,
+    open_world=False,
+    title="Create Template",
+)
 async def create_template(
     ctx: Annotated[Context, Field(description="The FastMCP Context object")],
     name: Annotated[str, Field(description="The name of the template to create")],
@@ -211,6 +225,12 @@ async def create_template(
     )
 
 
+@annotate(
+    read_only=False,
+    destructive=False,
+    open_world=False,
+    title="Update Template",
+)
 async def update_template(
     ctx: Annotated[Context, Field(description="The FastMCP Context object")],
     name: Annotated[str, Field(description="The name of the template to update")],

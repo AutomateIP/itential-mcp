@@ -9,11 +9,18 @@ from pydantic import Field
 from fastmcp import Context
 
 from itential_mcp.models import compliance_reports as models
+from itential_mcp.utilities.tool import annotate
 
 
 __tags__ = ("configuration_manager",)
 
 
+@annotate(
+    read_only=True,
+    idempotent=True,
+    open_world=False,
+    title="Describe Compliance Report",
+)
 async def describe_compliance_report(
     ctx: Annotated[Context, Field(description="The FastMCP Context object")],
     report_id: Annotated[str, Field(description="The ID of the report to describe")],

@@ -9,11 +9,13 @@ from pydantic import Field
 from fastmcp import Context
 
 from itential_mcp.models import inventory_manager as models
+from itential_mcp.utilities.tool import annotate
 
 
 __tags__ = ("inventory_manager",)
 
 
+@annotate(read_only=True, idempotent=True, open_world=False, title="Get Inventories")
 async def get_inventories(
     ctx: Annotated[Context, Field(description="The FastMCP Context object")],
 ) -> models.GetInventoriesResponse:
@@ -49,6 +51,12 @@ async def get_inventories(
     )
 
 
+@annotate(
+    read_only=True,
+    idempotent=True,
+    open_world=False,
+    title="Describe Inventory",
+)
 async def describe_inventory(
     ctx: Annotated[Context, Field(description="The FastMCP Context object")],
     name: Annotated[
@@ -90,6 +98,12 @@ async def describe_inventory(
     return models.DescribeInventoryResponse(**data)
 
 
+@annotate(
+    read_only=False,
+    destructive=False,
+    open_world=False,
+    title="Create Inventory",
+)
 async def create_inventory(
     ctx: Annotated[Context, Field(description="The FastMCP Context object")],
     name: Annotated[
@@ -153,6 +167,12 @@ async def create_inventory(
     return models.CreateInventoryResponse(**res)
 
 
+@annotate(
+    read_only=False,
+    destructive=False,
+    open_world=False,
+    title="Add Nodes to Inventory",
+)
 async def add_nodes_to_inventory(
     ctx: Annotated[Context, Field(description="The FastMCP Context object")],
     inventory_name: Annotated[
@@ -215,6 +235,12 @@ async def add_nodes_to_inventory(
     )
 
 
+@annotate(
+    read_only=False,
+    destructive=True,
+    open_world=False,
+    title="Delete Inventory",
+)
 async def delete_inventory(
     ctx: Annotated[Context, Field(description="The FastMCP Context object")],
     name: Annotated[

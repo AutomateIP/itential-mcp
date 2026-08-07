@@ -13,12 +13,14 @@ from fastmcp import Context
 from itential_mcp.core import exceptions
 from itential_mcp.core import errors
 from itential_mcp.utilities import json as jsonutils
+from itential_mcp.utilities.tool import annotate
 from itential_mcp.models import lifecycle_manager as models
 
 
 __tags__ = ("lifecycle_manager",)
 
 
+@annotate(read_only=True, idempotent=True, open_world=False, title="Get Resources")
 async def get_resources(
     ctx: Annotated[Context, Field(description="The FastMCP Context object")],
 ) -> models.GetResourcesResponse:
@@ -56,6 +58,12 @@ async def get_resources(
     return models.GetResourcesResponse(root=results)
 
 
+@annotate(
+    read_only=False,
+    destructive=False,
+    open_world=False,
+    title="Create Resource",
+)
 async def create_resource(
     ctx: Annotated[Context, Field(description="The FastMCP Context object")],
     name: Annotated[
@@ -110,6 +118,12 @@ async def create_resource(
     return models.CreateResourceResponse()
 
 
+@annotate(
+    read_only=True,
+    idempotent=True,
+    open_world=False,
+    title="Describe Resource",
+)
 async def describe_resource(
     ctx: Annotated[Context, Field(description="The FastMCP Context object")],
     name: Annotated[
@@ -187,6 +201,7 @@ async def describe_resource(
     )
 
 
+@annotate(read_only=True, idempotent=True, open_world=False, title="Get Instances")
 async def get_instances(
     ctx: Annotated[Context, Field(description="The FastMCP Context object")],
     resource_name: Annotated[
@@ -239,6 +254,12 @@ async def get_instances(
     return models.GetInstancesResponse(root=results)
 
 
+@annotate(
+    read_only=True,
+    idempotent=True,
+    open_world=False,
+    title="Describe Instance",
+)
 async def describe_instance(
     ctx: Annotated[Context, Field(description="The FastMCP Context object")],
     resource_name: Annotated[
@@ -290,6 +311,12 @@ async def describe_instance(
     )
 
 
+@annotate(
+    read_only=False,
+    destructive=True,
+    open_world=True,
+    title="Run Action",
+)
 async def run_action(
     ctx: Annotated[Context, Field(description="The FastMCP Context object")],
     resource_name: Annotated[
@@ -372,6 +399,12 @@ async def run_action(
     )
 
 
+@annotate(
+    read_only=True,
+    idempotent=True,
+    open_world=False,
+    title="Get Action Executions",
+)
 async def get_action_executions(
     ctx: Annotated[Context, Field(description="The FastMCP Context object")],
     resource_name: Annotated[

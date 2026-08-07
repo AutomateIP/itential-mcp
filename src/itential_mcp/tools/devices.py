@@ -9,11 +9,13 @@ from pydantic import Field
 from fastmcp import Context
 
 from itential_mcp.models import devices as models
+from itential_mcp.utilities.tool import annotate
 
 
 __tags__ = ("configuration_manager",)
 
 
+@annotate(read_only=True, idempotent=True, open_world=False, title="Get Devices")
 async def get_devices(
     ctx: Annotated[Context, Field(description="The FastMCP Context object")],
 ) -> models.GetDevicesResponse:
@@ -39,6 +41,12 @@ async def get_devices(
     return models.GetDevicesResponse(results)
 
 
+@annotate(
+    read_only=True,
+    idempotent=True,
+    open_world=True,
+    title="Get Device Configuration",
+)
 async def get_device_configuration(
     ctx: Annotated[Context, Field(description="The FastMCP Context object")],
     name: Annotated[
@@ -64,6 +72,12 @@ async def get_device_configuration(
     return await client.configuration_manager.get_device_configuration(name)
 
 
+@annotate(
+    read_only=False,
+    destructive=False,
+    open_world=True,
+    title="Backup Device Configuration",
+)
 async def backup_device_configuration(
     ctx: Annotated[Context, Field(description="The FastMCP Context object")],
     name: Annotated[str, Field(description="The name of the device to backup")],
@@ -104,6 +118,12 @@ async def backup_device_configuration(
     return models.BackupDeviceConfigurationResponse(**res)
 
 
+@annotate(
+    read_only=False,
+    destructive=True,
+    open_world=True,
+    title="Apply Device Configuration",
+)
 async def apply_device_configuration(
     ctx: Annotated[Context, Field(description="The FastMCP Context object")],
     device: Annotated[

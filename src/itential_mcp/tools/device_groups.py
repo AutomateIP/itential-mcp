@@ -9,11 +9,13 @@ from pydantic import Field
 from fastmcp import Context
 
 from itential_mcp.models import device_groups as models
+from itential_mcp.utilities.tool import annotate
 
 
 __tags__ = ("configuration_manager",)
 
 
+@annotate(read_only=True, idempotent=True, open_world=False, title="Get Device Groups")
 async def get_device_groups(
     ctx: Annotated[Context, Field(description="The FastMCP Context object")],
 ) -> models.GetDeviceGroupsResponse:
@@ -48,6 +50,12 @@ async def get_device_groups(
     )
 
 
+@annotate(
+    read_only=False,
+    destructive=False,
+    open_world=False,
+    title="Create Device Group",
+)
 async def create_device_group(
     ctx: Annotated[Context, Field(description="The FastMCP Context object")],
     name: Annotated[str, Field(description="The name of the device group to create")],
@@ -93,6 +101,13 @@ async def create_device_group(
     return models.CreateDeviceGroupResponse(**res)
 
 
+@annotate(
+    read_only=False,
+    destructive=False,
+    idempotent=True,
+    open_world=False,
+    title="Add Devices to Group",
+)
 async def add_devices_to_group(
     ctx: Annotated[Context, Field(description="The FastMCP Context object")],
     name: Annotated[
@@ -151,6 +166,12 @@ async def add_devices_to_group(
     )
 
 
+@annotate(
+    read_only=False,
+    destructive=True,
+    open_world=False,
+    title="Remove Devices from Group",
+)
 async def remove_devices_from_group(
     ctx: Annotated[Context, Field(description="The FastMCP Context object")],
     name: Annotated[

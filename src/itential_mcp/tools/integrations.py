@@ -9,12 +9,14 @@ from pydantic import Field
 from fastmcp import Context
 
 from itential_mcp.core import exceptions
+from itential_mcp.utilities.tool import annotate
 from itential_mcp.models import integrations as models
 
 
 __tags__ = ("integrations",)
 
 
+@annotate(read_only=True, idempotent=True, open_world=False, title="Get Integrations")
 async def get_integrations(
     ctx: Annotated[Context, Field(description="The FastMCP Context object")],
     model: Annotated[
@@ -67,6 +69,12 @@ async def get_integrations(
     return models.GetIntegrationsResponse(root=results)
 
 
+@annotate(
+    read_only=True,
+    idempotent=True,
+    open_world=False,
+    title="Get Integration Models",
+)
 async def get_integration_models(
     ctx: Annotated[Context, Field(description="The FastMCP Context object")],
 ) -> models.GetIntegrationModelsResponse:
@@ -108,6 +116,12 @@ async def get_integration_models(
     return models.GetIntegrationModelsResponse(root=results)
 
 
+@annotate(
+    read_only=False,
+    destructive=False,
+    open_world=False,
+    title="Create Integration Model",
+)
 async def create_integration_model(
     ctx: Annotated[Context, Field(description="The FastMCP Context object")],
     model: Annotated[dict, Field(description="OpenAPI specification")],

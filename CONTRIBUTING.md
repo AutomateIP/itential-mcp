@@ -120,6 +120,7 @@ Examples:
 - [ ] Run code quality checks: `make lint`
 - [ ] Add tests for new functionality
 - [ ] Update documentation if needed
+- [ ] If this PR adds or changes a tool, confirm it has correct `@annotate(...)` classification (read-only vs. write vs. destructive)
 - [ ] Sign the Contributor License Agreement (CLA)
 
 ### Pull Request Description
