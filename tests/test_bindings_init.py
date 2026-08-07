@@ -114,6 +114,9 @@ class TestBindToTool:
         assert kwargs["name"] == "test_tool_name"
         assert kwargs["exclude_args"] == ("_tool_config",)
         assert kwargs["tags"] == ["bindings", "test_tool_name", "tag1", "tag2"]
+        assert kwargs["annotations"].destructiveHint is True
+        assert not kwargs["annotations"].readOnlyHint
+        assert kwargs["title"] == "Test Tool Name"
 
     @patch("itential_mcp.bindings._import_binding")
     @pytest.mark.asyncio
@@ -140,6 +143,9 @@ class TestBindToTool:
         assert kwargs["name"] == "test_tool_name"
         assert kwargs["exclude_args"] == ("_tool_config",)
         assert kwargs["tags"] == ["bindings", "test_tool_name"]
+        assert kwargs["annotations"].destructiveHint is True
+        assert not kwargs["annotations"].readOnlyHint
+        assert kwargs["title"] == "Test Tool Name"
 
     @patch("itential_mcp.bindings._import_binding")
     @pytest.mark.asyncio
@@ -365,8 +371,30 @@ class TestBindingsIntegration:
             "workflow",
             "automation",
         ]
+        assert bound_kwargs["annotations"].destructiveHint is True
+        assert not bound_kwargs["annotations"].readOnlyHint
+        assert bound_kwargs["title"] == "Test Workflow"
 
         # Verify the endpoint module was called correctly
         mock_endpoint_module.new.assert_called_once_with(
             tool, mock_platform_client_instance
         )
+
+
+class TestHumanizeTitle:
+    """Test cases for the _humanize_title helper function."""
+
+    def test_humanize_title_simple(self):
+        from itential_mcp.bindings import _humanize_title
+
+        assert _humanize_title("deploy_configuration") == "Deploy Configuration"
+
+    def test_humanize_title_single_word(self):
+        from itential_mcp.bindings import _humanize_title
+
+        assert _humanize_title("deploy") == "Deploy"
+
+    def test_humanize_title_collapses_extra_underscores(self):
+        from itential_mcp.bindings import _humanize_title
+
+        assert _humanize_title("deploy__config") == "Deploy Config"

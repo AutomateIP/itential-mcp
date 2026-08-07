@@ -193,7 +193,14 @@ class Server:
         self.mcp.custom_route("/status/livez", methods=["GET"])(routes.get_livez)
 
     async def __init_tools__(self) -> None:
-        """Initialize tools."""
+        """Initialize tools.
+
+        Discovers and registers all static tools from the built-in tools
+        directory and, if configured, an additional `tools_path` directory.
+        Discovery order is deterministic (name-sorted) via
+        `toolutils.itertools()`, and each tool's `@annotate(...)` hints, if
+        any, are passed through to FastMCP as tool `annotations`/`title`.
+        """
         logging.info("Adding tools to MCP server")
 
         tool_paths = [pathlib.Path(__file__).parent.parent / "tools"]
@@ -205,9 +212,12 @@ class Server:
 
         for ele in tool_paths:
             logger.info(f"Adding MCP Tools from {ele}")
-            for f, tags in toolutils.itertools(ele):
+            for f, tags, annotations in toolutils.itertools(ele):
                 tags.add("default")
                 kwargs = {"tags": tags}
+
+                if annotations is not None:
+                    kwargs["annotations"] = annotations
 
                 try:
                     schema = toolutils.get_json_schema(f)

@@ -16,6 +16,7 @@ from fastmcp.server.elicitation import (
 from mcp.types import ClientCapabilities, ElicitationCapability
 
 from itential_mcp.utilities import json as jsonutils
+from itential_mcp.utilities.tool import annotate
 from itential_mcp.core import exceptions
 
 from itential_mcp.models import gateway_manager as models
@@ -58,6 +59,7 @@ def _export_contains_sensitive_data(document: dict[str, Any]) -> bool:
     return False
 
 
+@annotate(read_only=True, idempotent=True, open_world=False, title="Get Services")
 async def get_services(
     ctx: Annotated[Context, Field(description="The FastMCP Context object")],
 ) -> models.GetServicesResponse:
@@ -100,6 +102,7 @@ async def get_services(
     return models.GetServicesResponse(results)
 
 
+@annotate(read_only=True, idempotent=True, open_world=False, title="Get Gateways")
 async def get_gateways(
     ctx: Annotated[Context, Field(description="The FastMCP Context object")],
 ) -> models.GetGatewaysResponse:
@@ -154,6 +157,12 @@ async def get_gateways(
     return models.GetGatewaysResponse(results)
 
 
+@annotate(
+    read_only=False,
+    destructive=True,
+    open_world=True,
+    title="Run Service",
+)
 async def run_service(
     ctx: Annotated[Context, Field(description="The FastMCP Context object")],
     name: Annotated[str, Field(description="The name of the service to run")],
@@ -215,6 +224,12 @@ async def run_service(
     return models.RunServiceResponse(**res["result"])
 
 
+@annotate(
+    read_only=False,
+    destructive=False,
+    open_world=True,
+    title="Export Gateway Configuration",
+)
 async def export_gateway_configuration(
     ctx: Annotated[Context, Field(description="The FastMCP Context object")],
     cluster_id: Annotated[
@@ -292,6 +307,12 @@ async def export_gateway_configuration(
             )
 
 
+@annotate(
+    read_only=False,
+    destructive=True,
+    open_world=True,
+    title="Import Gateway Configuration",
+)
 async def import_gateway_configuration(
     ctx: Annotated[Context, Field(description="The FastMCP Context object")],
     cluster_id: Annotated[

@@ -10,6 +10,8 @@ from typing import Tuple, Callable, Mapping, Any
 
 from fastmcp.utilities.logging import get_logger
 
+from mcp.types import ToolAnnotations
+
 from .. import config
 from ..platform import PlatformClient
 
@@ -43,6 +45,23 @@ def _import_binding(module_name: str) -> ModuleType:
     spec.loader.exec_module(module)
 
     return module
+
+
+def _humanize_title(name: str) -> str:
+    """Convert a snake_case tool name into a human-readable title.
+
+    Args:
+        name (str): The tool name, typically snake_case (e.g. `tool_name`
+            from a dynamic binding's configuration).
+
+    Returns:
+        str: A title-cased, space-separated human-readable title (e.g.
+            "Deploy Configuration").
+
+    Raises:
+        None
+    """
+    return " ".join(part.capitalize() for part in name.split("_") if part)
 
 
 async def bind_to_tool(
@@ -88,6 +107,10 @@ async def bind_to_tool(
                 - description: Tool description from binding module
                 - tags: Complete list of tags for filtering
                 - exclude_args: Arguments to hide from MCP schema
+                - annotations: Conservative ToolAnnotations (destructive,
+                    not read-only, open-world) since the bound automation's
+                    real-world effects are unknown at registration time
+                - title: A humanized title derived from the tool's name
 
     Raises:
         AttributeError: If the tool type module doesn't have a 'new' function.
@@ -96,10 +119,20 @@ async def bind_to_tool(
     logger.info(f"Adding dynamic binding for tool: {tool.name} (type={tool.type})")
 
     # Step 1: Prepare base registration kwargs
-    # exclude_args hides internal parameters from the MCP tool schema
+    # exclude_args hides internal parameters from the MCP tool schema.
+    # annotations default to the conservative posture (destructive,
+    # not-read-only, open-world) because a dynamically-bound tool triggers
+    # an arbitrary platform automation/workflow whose effects are unknown to
+    # us at registration time.
     kwargs = {
         "name": tool.tool_name,
         "exclude_args": ("_tool_config",),
+        "annotations": ToolAnnotations(
+            destructiveHint=True,
+            readOnlyHint=False,
+            openWorldHint=True,
+        ),
+        "title": _humanize_title(tool.tool_name),
     }
 
     # Step 2: Import the appropriate binding module for this tool type

@@ -13,8 +13,11 @@ from typing import Union
 
 from pydantic import BaseModel
 
+from mcp.types import ToolAnnotations
+
 from itential_mcp.utilities.tool import (
     tags,
+    annotate,
     itertools,
     display_tools,
     display_tags,
@@ -186,7 +189,7 @@ def another_test():
             # Should find 2 functions (test_function and another_test, not _private_function)
             assert len(tools) == 2
 
-            func_names = [func.__name__ for func, _ in tools]
+            func_names = [func.__name__ for func, _, _annotations in tools]
             assert "test_function" in func_names
             assert "another_test" in func_names
             assert "_private_function" not in func_names
@@ -209,11 +212,12 @@ def tagged_function():
             tools = list(itertools(temp_dir))
 
             assert len(tools) == 1
-            func, tags_set = tools[0]
+            func, tags_set, tool_annotations = tools[0]
             assert func.__name__ == "tagged_function"
             assert "module_tag" in tags_set
             assert "shared" in tags_set
             assert "tagged_function" in tags_set  # function name is also added as tag
+            assert tool_annotations is None
 
     def test_itertools_with_function_tags(self):
         """Test itertools with function-level tags decorator"""
@@ -234,11 +238,12 @@ def decorated_function():
             tools = list(itertools(temp_dir))
 
             assert len(tools) == 1
-            func, tags_set = tools[0]
+            func, tags_set, tool_annotations = tools[0]
             assert func.__name__ == "decorated_function"
             assert "decorated" in tags_set
             assert "special" in tags_set
             assert "decorated_function" in tags_set
+            assert tool_annotations is None
 
     def test_itertools_ignores_underscore_modules(self):
         """Test that itertools ignores modules starting with underscore"""
@@ -296,7 +301,7 @@ def local_function():
 
             # Should only find local_function, not imported join
             assert len(tools) == 1
-            func, _ = tools[0]
+            func, _, _annotations = tools[0]
             assert func.__name__ == "local_function"
 
     def test_itertools_with_explicit_path(self):
@@ -320,7 +325,7 @@ def explicit_path_function():
             tools = list(itertools(tools_dir))
 
             assert len(tools) == 1
-            func, _ = tools[0]
+            func, _, _annotations = tools[0]
             assert func.__name__ == "explicit_path_function"
 
     def test_itertools_path_parameter_required(self):
@@ -348,7 +353,10 @@ class TestDisplayFunctions:
         mock_func2.__name__ = "another_tool"
         mock_func2.__doc__ = "\n    Another tool for testing\n    "
 
-        mock_itertools.return_value = [(mock_func1, set()), (mock_func2, set())]
+        mock_itertools.return_value = [
+            (mock_func1, set(), None),
+            (mock_func2, set(), None),
+        ]
 
         await display_tools()
 
@@ -371,7 +379,7 @@ class TestDisplayFunctions:
         mock_func.__name__ = "tool"
         mock_func.__doc__ = "\n    This is a very long description that should be truncated because it exceeds the terminal width\n    "
 
-        mock_itertools.return_value = [(mock_func, set())]
+        mock_itertools.return_value = [(mock_func, set(), None)]
 
         await display_tools()
 
@@ -395,7 +403,10 @@ class TestDisplayFunctions:
         tags1 = {"tag1", "shared", "alpha"}
         tags2 = {"tag2", "shared", "beta"}
 
-        mock_itertools.return_value = [(mock_func1, tags1), (mock_func2, tags2)]
+        mock_itertools.return_value = [
+            (mock_func1, tags1, None),
+            (mock_func2, tags2, None),
+        ]
 
         await display_tags()
 
@@ -449,3 +460,196 @@ class TestDisplayFunctions:
         header_call = mock_print.call_args_list[0]
         assert "TOOLS" in str(header_call)
         assert "DESCRIPTION" in str(header_call)
+
+
+class TestAnnotateDecorator:
+    """Test the annotate decorator functionality"""
+
+    def test_annotate_sets_annotations_attribute(self):
+        @annotate(read_only=True, idempotent=True, title="Get Health")
+        def my_func():
+            return "hello"
+
+        assert hasattr(my_func, "annotations")
+        assert isinstance(my_func.annotations, ToolAnnotations)
+        assert my_func.annotations.readOnlyHint is True
+        assert my_func.annotations.idempotentHint is True
+        assert my_func.annotations.title == "Get Health"
+
+    def test_annotate_destructive_tool(self):
+        @annotate(read_only=False, destructive=True, open_world=True)
+        def apply_config():
+            return "applied"
+
+        assert apply_config.annotations.readOnlyHint is False
+        assert apply_config.annotations.destructiveHint is True
+        assert apply_config.annotations.openWorldHint is True
+
+    def test_annotate_defaults_to_none(self):
+        @annotate()
+        def unspecified_func():
+            return None
+
+        annotations = unspecified_func.annotations
+        assert annotations.readOnlyHint is None
+        assert annotations.destructiveHint is None
+        assert annotations.idempotentHint is None
+        assert annotations.openWorldHint is None
+        assert annotations.title is None
+
+    def test_annotate_does_not_modify_function_behavior(self):
+        @annotate(read_only=True)
+        def simple_func(x):
+            return x * 2
+
+        assert simple_func(4) == 8
+
+    def test_annotate_preserves_function_name_and_doc(self):
+        @annotate(read_only=True, title="Documented")
+        def documented_func():
+            """This is a test function"""
+            return True
+
+        assert documented_func.__name__ == "documented_func"
+        assert documented_func.__doc__ == "This is a test function"
+
+
+class TestItertoolsDeterministicOrdering:
+    """Test that itertools yields tools in a stable, name-sorted order"""
+
+    def test_itertools_stable_order_across_calls(self):
+        """Two successive calls to itertools() over the same directory must
+        yield tools in the same order."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            modules = {
+                "zeta.py": "def zeta_func():\n    pass\n",
+                "alpha.py": "def alpha_func():\n    pass\n",
+                "mu.py": "def mu_func():\n    pass\n",
+            }
+            for filename, content in modules.items():
+                with open(os.path.join(temp_dir, filename), "w") as f:
+                    f.write(content)
+
+            first_pass = [f.__name__ for f, _, _ann in itertools(temp_dir)]
+            second_pass = [f.__name__ for f, _, _ann in itertools(temp_dir)]
+
+            assert first_pass == second_pass
+
+    def test_itertools_orders_by_module_file_name(self):
+        """Module files must be discovered in name-sorted order regardless
+        of filesystem/os.listdir() return order."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            modules = {
+                "zeta.py": "def zeta_func():\n    pass\n",
+                "alpha.py": "def alpha_func():\n    pass\n",
+                "mu.py": "def mu_func():\n    pass\n",
+            }
+            for filename, content in modules.items():
+                with open(os.path.join(temp_dir, filename), "w") as f:
+                    f.write(content)
+
+            names = [f.__name__ for f, _, _ann in itertools(temp_dir)]
+
+            # Modules should be imported in sorted order: alpha, mu, zeta
+            assert names == ["alpha_func", "mu_func", "zeta_func"]
+
+    def test_real_tools_directory_discovery_is_stable(self):
+        """Discovery order over the real tools/ package must be stable
+        across two calls."""
+        import pathlib
+
+        path = (
+            pathlib.Path(__file__).parent.parent.parent
+            / "src"
+            / "itential_mcp"
+            / "tools"
+        )
+
+        first_pass = [f.__name__ for f, _, _ann in itertools(str(path))]
+        second_pass = [f.__name__ for f, _, _ann in itertools(str(path))]
+
+        assert first_pass == second_pass
+
+
+class TestToolAnnotationCompleteness:
+    """Completeness guard: every discovered static tool must be decorated
+    with @annotate(...), so that a destructive tool can never end up
+    unclassified (and therefore un-audited) by omission."""
+
+    def _discover_real_tools(self):
+        import pathlib
+
+        path = (
+            pathlib.Path(__file__).parent.parent.parent
+            / "src"
+            / "itential_mcp"
+            / "tools"
+        )
+        return list(itertools(str(path)))
+
+    def test_every_discovered_tool_has_annotations(self):
+        tools = self._discover_real_tools()
+
+        assert len(tools) > 0
+
+        missing = [f.__name__ for f, _tags, ann in tools if ann is None]
+
+        assert missing == [], (
+            f"the following tools are missing @annotate(...) classification: {missing}"
+        )
+
+
+class TestToolAnnotationSafetyInvariants:
+    """Safety-invariant tests over the real, decorated tool set."""
+
+    _EXPLICITLY_DESTRUCTIVE = {
+        "apply_device_configuration",
+        "run_command",
+        "run_command_template",
+        "run_service",
+        "import_gateway_configuration",
+        "run_action",
+        "delete_inventory",
+        "remove_devices_from_group",
+        "trigger_automation",
+        "start_workflow",
+    }
+
+    def _discover_real_tools(self):
+        import pathlib
+
+        path = (
+            pathlib.Path(__file__).parent.parent.parent
+            / "src"
+            / "itential_mcp"
+            / "tools"
+        )
+        return list(itertools(str(path)))
+
+    def test_no_tool_is_both_read_only_and_destructive(self):
+        tools = self._discover_real_tools()
+
+        violations = [
+            f.__name__
+            for f, _tags, ann in tools
+            if ann is not None and ann.readOnlyHint and ann.destructiveHint
+        ]
+
+        assert violations == [], (
+            f"the following tools are marked both readOnlyHint=True and "
+            f"destructiveHint=True, which is a contradiction: {violations}"
+        )
+
+    def test_explicitly_destructive_tools_are_correctly_classified(self):
+        tools = self._discover_real_tools()
+
+        by_name = {f.__name__: ann for f, _tags, ann in tools}
+
+        missing_from_discovery = self._EXPLICITLY_DESTRUCTIVE - by_name.keys()
+        assert missing_from_discovery == set(), missing_from_discovery
+
+        for name in self._EXPLICITLY_DESTRUCTIVE:
+            ann = by_name[name]
+            assert ann is not None, f"{name} has no annotations at all"
+            assert ann.destructiveHint is True, f"{name} must have destructiveHint=True"
+            assert not ann.readOnlyHint, f"{name} must not have readOnlyHint truthy"

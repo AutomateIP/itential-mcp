@@ -9,11 +9,13 @@ from pydantic import Field
 from fastmcp import Context
 
 from itential_mcp.models import applications as models
+from itential_mcp.utilities.tool import annotate
 
 
 __tags__ = ("applications",)
 
 
+@annotate(read_only=True, idempotent=True, open_world=False, title="Get Applications")
 async def get_applications(
     ctx: Annotated[Context, Field(description="The FastMCP Context object")],
 ) -> models.GetApplicationsResponse:
@@ -54,6 +56,12 @@ async def get_applications(
     return models.GetApplicationsResponse(root=elements)
 
 
+@annotate(
+    read_only=False,
+    destructive=False,
+    open_world=True,
+    title="Start Application",
+)
 async def start_application(
     ctx: Annotated[Context, Field(description="The FastMCP Context object")],
     name: Annotated[str, Field(description="The name of the application to start")],
@@ -92,6 +100,12 @@ async def start_application(
     return models.StartApplicationResponse(name=data["id"], state=data["state"])
 
 
+@annotate(
+    read_only=False,
+    destructive=False,
+    open_world=True,
+    title="Stop Application",
+)
 async def stop_application(
     ctx: Annotated[Context, Field(description="The FastMCP Context object")],
     name: Annotated[str, Field(description="The name of the application to stop")],
@@ -130,6 +144,12 @@ async def stop_application(
     return models.StopApplicationResponse(name=data["id"], state=data["state"])
 
 
+@annotate(
+    read_only=False,
+    destructive=False,
+    open_world=True,
+    title="Restart Application",
+)
 async def restart_application(
     ctx: Annotated[Context, Field(description="The FastMCP Context object")],
     name: Annotated[str, Field(description="The name of the application to restart")],

@@ -7,12 +7,19 @@ from pydantic import Field
 
 from fastmcp import Context
 from itential_mcp.utilities import json as jsonutils
+from itential_mcp.utilities.tool import annotate
 from itential_mcp.models import command_templates as models
 
 
 __tags__ = ("automation_studio",)
 
 
+@annotate(
+    read_only=True,
+    idempotent=True,
+    open_world=False,
+    title="Get Command Templates",
+)
 async def get_command_templates(
     ctx: Annotated[Context, Field(description="The FastMCP Context object")],
 ) -> models.GetCommandTemplatesResponse:
@@ -49,6 +56,12 @@ async def get_command_templates(
     return models.GetCommandTemplatesResponse(templates=results)
 
 
+@annotate(
+    read_only=True,
+    idempotent=True,
+    open_world=False,
+    title="Describe Command Template",
+)
 async def describe_command_template(
     ctx: Annotated[Context, Field(description="The FastMCP Context object")],
     name: Annotated[
@@ -87,6 +100,12 @@ async def describe_command_template(
     return models.DescribeCommandTemplateResponse(template=template)
 
 
+@annotate(
+    read_only=False,
+    destructive=True,
+    open_world=True,
+    title="Run Command Template",
+)
 async def run_command_template(
     ctx: Annotated[Context, Field(description="The FastMCP Context object")],
     name: Annotated[str, Field(description="The name of the command template to run")],
@@ -158,6 +177,12 @@ async def run_command_template(
     )
 
 
+@annotate(
+    read_only=False,
+    destructive=True,
+    open_world=True,
+    title="Run Command",
+)
 async def run_command(
     ctx: Annotated[Context, Field(description="The FastMCP Context object")],
     cmd: Annotated[str, Field(description="The command to run on the devices")],
@@ -198,6 +223,12 @@ async def run_command(
     return models.RunCommandResponse(results=results)
 
 
+@annotate(
+    read_only=False,
+    destructive=False,
+    open_world=False,
+    title="Create Command Template",
+)
 async def create_command_template(
     ctx: Annotated[Context, Field(description="The FastMCP Context object")],
     name: Annotated[str, Field(description="Name for the command template")],
@@ -342,6 +373,12 @@ async def create_command_template(
     return models.CreateCommandTemplateResponse(**data)
 
 
+@annotate(
+    read_only=False,
+    destructive=False,
+    open_world=False,
+    title="Update Command Template",
+)
 async def update_command_template(
     ctx: Annotated[Context, Field(description="The FastMCP Context object")],
     name: Annotated[str, Field(description="Name of the command template to update")],

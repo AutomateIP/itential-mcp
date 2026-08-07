@@ -11,11 +11,13 @@ from pydantic import Field
 from fastmcp import Context
 
 from itential_mcp.models import projects as models
+from itential_mcp.utilities.tool import annotate
 
 
 __tags__ = ("automation_studio",)
 
 
+@annotate(read_only=True, idempotent=True, open_world=False, title="Get Projects")
 async def get_projects(
     ctx: Annotated[Context, Field(description="The FastMCP Context object")],
 ) -> models.GetProjectsResponse:
@@ -55,6 +57,12 @@ async def get_projects(
     return models.GetProjectsResponse(root=results)
 
 
+@annotate(
+    read_only=True,
+    idempotent=True,
+    open_world=False,
+    title="Describe Project",
+)
 async def describe_project(
     ctx: Annotated[Context, Field(description="The FastMCP Context object")],
     name: Annotated[str, Field(description="The name of the project to describe")],

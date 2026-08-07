@@ -9,12 +9,19 @@ from pydantic import Field
 from fastmcp import Context
 
 from itential_mcp.utilities import json as jsonutils
+from itential_mcp.utilities.tool import annotate
 from itential_mcp.models import configuration_manager as models
 
 
 __tags__ = ("configuration_manager",)
 
 
+@annotate(
+    read_only=True,
+    idempotent=True,
+    open_world=False,
+    title="Render Template",
+)
 async def render_template(
     ctx: Annotated[Context, Field(description="The FastMCP Context object")],
     template: Annotated[str, Field(description="The Jinja2 template string")],

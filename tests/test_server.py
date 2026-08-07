@@ -665,7 +665,7 @@ class TestIntegration:
             pass
 
         mock_func.__name__ = "test_tool"
-        mock_itertools.return_value = [(mock_func, {"system", "test"})]
+        mock_itertools.return_value = [(mock_func, {"system", "test"}, None)]
 
         async def empty_aiter():
             return
@@ -1091,7 +1091,7 @@ class TestServerInitialization:
             pass
 
         mock_func.__name__ = "test_tool"
-        mock_itertools.return_value = [(mock_func, {"test"})]
+        mock_itertools.return_value = [(mock_func, {"test"}, None)]
 
         server_instance = server_module.Server(mock_config)
 
@@ -1124,7 +1124,7 @@ class TestServerInitialization:
             pass
 
         mock_func.__name__ = "test_tool"
-        mock_itertools.return_value = [(mock_func, {"test"})]
+        mock_itertools.return_value = [(mock_func, {"test"}, None)]
 
         # Mock schema with object type
         mock_get_schema.return_value = {"type": "object", "properties": {}}
@@ -1160,7 +1160,7 @@ class TestServerInitialization:
             pass
 
         mock_func.__name__ = "test_tool"
-        mock_itertools.return_value = [(mock_func, {"test"})]
+        mock_itertools.return_value = [(mock_func, {"test"}, None)]
 
         # Mock get_json_schema to raise ValueError
         mock_get_schema.side_effect = ValueError("No schema")
@@ -1487,3 +1487,91 @@ class TestServerInfoVersion:
                 # version= kwarg and silently falls back to fastmcp's own
                 # package version.
                 assert server_info.version != fastmcp.__version__
+
+
+class TestToolAnnotationsAndOrdering:
+    """Test that static tool registration carries through annotations/title
+    metadata and yields a deterministic tools/list ordering.
+
+    Regression coverage for the MCP tool-annotations/title/ordering hygiene
+    work: a destructive tool must never register with readOnlyHint=true by
+    omission, and tools/list order must be stable across server instances.
+    """
+
+    @pytest.mark.asyncio
+    @patch("itential_mcp.server.auth.build_auth_provider")
+    @patch("itential_mcp.server.server.bindings.iterbindings")
+    async def test_known_read_only_and_destructive_tools_registered_correctly(
+        self, mock_iterbindings, mock_auth_builder
+    ):
+        """get_health must register readOnlyHint=True and
+        apply_device_configuration must register destructiveHint=True, using
+        the real tools/ discovery path (no itertools mocking)."""
+        from itential_mcp.config.models import Config, ServerConfig, AuthConfig
+
+        mock_config = Config(
+            server=ServerConfig(transport="stdio", tools_path=None, log_level="INFO"),
+            auth=AuthConfig(type="none"),
+        )
+
+        mock_auth_builder.return_value = None
+
+        async def empty_aiter():
+            return
+            yield  # unreachable but makes this an async generator
+
+        mock_iterbindings.return_value = empty_aiter()
+
+        server_instance = server_module.Server(mock_config)
+
+        async with server_instance:
+            async with Client(server_instance.mcp) as client:
+                tools = await client.list_tools()
+
+                by_name = {t.name: t for t in tools}
+
+                assert "get_health" in by_name
+                health_annotations = by_name["get_health"].annotations
+                assert health_annotations is not None
+                assert health_annotations.readOnlyHint is True
+
+                assert "apply_device_configuration" in by_name
+                apply_annotations = by_name["apply_device_configuration"].annotations
+                assert apply_annotations is not None
+                assert apply_annotations.destructiveHint is True
+                assert not apply_annotations.readOnlyHint
+
+    @pytest.mark.asyncio
+    @patch("itential_mcp.server.auth.build_auth_provider")
+    @patch("itential_mcp.server.server.bindings.iterbindings")
+    async def test_tool_registration_order_is_deterministic(
+        self, mock_iterbindings, mock_auth_builder
+    ):
+        """Two independently constructed Server instances must register
+        tools in the same order over the real tools/ discovery path."""
+        from itential_mcp.config.models import Config, ServerConfig, AuthConfig
+
+        mock_config = Config(
+            server=ServerConfig(transport="stdio", tools_path=None, log_level="INFO"),
+            auth=AuthConfig(type="none"),
+        )
+
+        mock_auth_builder.return_value = None
+
+        async def empty_aiter():
+            return
+            yield  # unreachable but makes this an async generator
+
+        mock_iterbindings.side_effect = [empty_aiter(), empty_aiter()]
+
+        server_a = server_module.Server(mock_config)
+        async with server_a:
+            async with Client(server_a.mcp) as client_a:
+                names_a = [t.name for t in await client_a.list_tools()]
+
+        server_b = server_module.Server(mock_config)
+        async with server_b:
+            async with Client(server_b.mcp) as client_b:
+                names_b = [t.name for t in await client_b.list_tools()]
+
+        assert names_a == names_b

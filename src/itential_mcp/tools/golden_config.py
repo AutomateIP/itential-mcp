@@ -11,6 +11,7 @@ from fastmcp import Context
 from itential_mcp.core import exceptions
 from itential_mcp.core import errors
 from itential_mcp.utilities import json as jsonutils
+from itential_mcp.utilities.tool import annotate
 
 from itential_mcp.models import configuration_manager as models
 
@@ -18,6 +19,12 @@ from itential_mcp.models import configuration_manager as models
 __tags__ = ("configuration_manager",)
 
 
+@annotate(
+    read_only=True,
+    idempotent=True,
+    open_world=False,
+    title="Get Golden Config Trees",
+)
 async def get_golden_config_trees(
     ctx: Annotated[Context, Field(description="The FastMCP Context object")],
 ) -> models.GetGoldenConfigTreesResponse:
@@ -58,6 +65,12 @@ async def get_golden_config_trees(
     return models.GetGoldenConfigTreesResponse(root=results)
 
 
+@annotate(
+    read_only=False,
+    destructive=False,
+    open_world=False,
+    title="Create Golden Config Tree",
+)
 async def create_golden_config_tree(
     ctx: Annotated[Context, Field(description="The FastMCP Context object")],
     name: Annotated[
@@ -125,6 +138,12 @@ async def create_golden_config_tree(
     )
 
 
+@annotate(
+    read_only=False,
+    destructive=False,
+    open_world=False,
+    title="Add Golden Config Node",
+)
 async def add_golden_config_node(
     ctx: Annotated[Context, Field(description="The FastMCP Context object")],
     tree_name: Annotated[

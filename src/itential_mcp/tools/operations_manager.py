@@ -15,6 +15,7 @@ from fastmcp import Context
 from itential_mcp.utilities import time as timeutils
 from itential_mcp.core import exceptions
 from itential_mcp.utilities import json as jsonutils
+from itential_mcp.utilities.tool import annotate
 
 from itential_mcp.models import operations_manager as models
 
@@ -114,6 +115,7 @@ async def _account_id_to_username(ctx: Context, account_id: str) -> str:
     return value
 
 
+@annotate(read_only=True, idempotent=True, open_world=False, title="Get Workflows")
 async def get_workflows(
     ctx: Annotated[Context, Field(description="The FastMCP Context object")],
 ) -> models.GetWorkflowsResponse:
@@ -170,6 +172,7 @@ async def get_workflows(
     return models.GetWorkflowsResponse(root=workflow_elements)
 
 
+@annotate(read_only=True, idempotent=True, open_world=False, title="Get Agents")
 async def get_agents(
     ctx: Annotated[Context, Field(description="The FastMCP Context object")],
 ) -> models.GetAgentsResponse:
@@ -220,6 +223,7 @@ async def get_agents(
     return models.GetAgentsResponse(root=agent_elements)
 
 
+@annotate(read_only=True, idempotent=True, open_world=False, title="Get Automations")
 async def get_automations(
     ctx: Annotated[Context, Field(description="The FastMCP Context object")],
 ) -> models.GetAutomationsResponse:
@@ -274,6 +278,12 @@ async def get_automations(
     return models.GetAutomationsResponse(root=elements)
 
 
+@annotate(
+    read_only=False,
+    destructive=True,
+    open_world=True,
+    title="Trigger Automation",
+)
 async def trigger_automation(
     ctx: Annotated[Context, Field(description="The FastMCP Context object")],
     route_name: Annotated[
@@ -379,6 +389,12 @@ async def trigger_automation(
     )
 
 
+@annotate(
+    read_only=False,
+    destructive=True,
+    open_world=True,
+    title="Start Workflow",
+)
 async def start_workflow(
     ctx: Annotated[Context, Field(description="The FastMCP Context object")],
     route_name: Annotated[
@@ -411,6 +427,7 @@ async def start_workflow(
     return await trigger_automation(ctx, route_name, data)
 
 
+@annotate(read_only=True, idempotent=True, open_world=False, title="Get Jobs")
 async def get_jobs(
     ctx: Annotated[Context, Field(description="The FastMCP Context object")],
     name: Annotated[
@@ -463,6 +480,7 @@ async def get_jobs(
     return models.GetJobsResponse(root=job_elements)
 
 
+@annotate(read_only=True, idempotent=True, open_world=False, title="Describe Job")
 async def describe_job(
     ctx: Annotated[Context, Field(description="The FastMCP Context object")],
     object_id: Annotated[str, Field(description="The ID used to retrieve the job")],
@@ -512,6 +530,12 @@ async def describe_job(
     )
 
 
+@annotate(
+    read_only=False,
+    destructive=False,
+    open_world=False,
+    title="Expose Workflow",
+)
 async def expose_workflow(
     ctx: Annotated[
         Context,
@@ -623,6 +647,12 @@ async def expose_workflow(
     )
 
 
+@annotate(
+    read_only=False,
+    destructive=False,
+    open_world=False,
+    title="Expose Agent",
+)
 async def expose_agent(
     ctx: Annotated[Context, Field(description="The FastMCP Context object")],
     agent_id: Annotated[
