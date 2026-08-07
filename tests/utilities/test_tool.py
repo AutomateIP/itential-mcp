@@ -613,6 +613,12 @@ class TestToolAnnotationSafetyInvariants:
         "remove_devices_from_group",
         "trigger_automation",
         "start_workflow",
+        "start_adapter",
+        "stop_adapter",
+        "restart_adapter",
+        "start_application",
+        "stop_application",
+        "restart_application",
     }
 
     def _discover_real_tools(self):

@@ -53,7 +53,7 @@ async def get_adapters(
 
 @annotate(
     read_only=False,
-    destructive=False,
+    destructive=True,
     open_world=True,
     title="Start Adapter",
 )
@@ -97,7 +97,7 @@ async def start_adapter(
 
 @annotate(
     read_only=False,
-    destructive=False,
+    destructive=True,
     open_world=True,
     title="Stop Adapter",
 )
@@ -141,7 +141,7 @@ async def stop_adapter(
 
 @annotate(
     read_only=False,
-    destructive=False,
+    destructive=True,
     open_world=True,
     title="Restart Adapter",
 )

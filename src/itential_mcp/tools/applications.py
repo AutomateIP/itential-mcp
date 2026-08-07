@@ -58,7 +58,7 @@ async def get_applications(
 
 @annotate(
     read_only=False,
-    destructive=False,
+    destructive=True,
     open_world=True,
     title="Start Application",
 )
@@ -102,7 +102,7 @@ async def start_application(
 
 @annotate(
     read_only=False,
-    destructive=False,
+    destructive=True,
     open_world=True,
     title="Stop Application",
 )
@@ -146,7 +146,7 @@ async def stop_application(
 
 @annotate(
     read_only=False,
-    destructive=False,
+    destructive=True,
     open_world=True,
     title="Restart Application",
 )
