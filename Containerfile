@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 # Create the builder container
-FROM ghcr.io/astral-sh/uv:python3.10-bookworm-slim AS builder
+FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim AS builder
 
 # Install the project into `/app`
 WORKDIR /app
@@ -28,7 +28,7 @@ ADD . /app
 RUN uv sync --frozen --no-dev --no-editable
 
 # Create the final container with the application installed
-FROM python:3.10-slim
+FROM python:3.13-slim
 
 WORKDIR /app
 
