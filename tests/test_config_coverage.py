@@ -570,6 +570,39 @@ class TestPlatformConfigValidators:
             PlatformConfig(host="")
 
 
+class TestEnvKeyForField:
+    """Branch coverage for loaders._env_key_for_field()."""
+
+    def test_env_key_for_field_unknown_field_returns_none(self):
+        """A field name absent from __pydantic_fields__ returns None."""
+        from itential_mcp.config.loaders import _env_key_for_field
+        from itential_mcp.config.models import ServerConfig
+
+        assert _env_key_for_field(ServerConfig, "not_a_real_field") is None
+
+    def test_env_key_for_field_non_env_backed_field_returns_none(self):
+        """A real field with a plain (non-partial) default has no env key.
+
+        Tool's `name` field uses a plain Field(description=...) with no
+        default_factory, exercising the branch where field_info exists but
+        the isinstance(factory, functools.partial) check fails.
+        """
+        from itential_mcp.config.loaders import _env_key_for_field
+        from itential_mcp.config.models import Tool
+
+        assert _env_key_for_field(Tool, "name") is None
+
+    def test_env_key_for_field_env_backed_field_returns_key(self):
+        """An env-backed field resolves to its backing env var name."""
+        from itential_mcp.config.loaders import _env_key_for_field
+        from itential_mcp.config.models import ServerConfig
+
+        assert (
+            _env_key_for_field(ServerConfig, "transport")
+            == "ITENTIAL_MCP_SERVER_TRANSPORT"
+        )
+
+
 class TestValidateHostCompleteHostnamePath:
     """Test validate_host to ensure all code paths are covered."""
 

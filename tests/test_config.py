@@ -8,6 +8,9 @@ import configparser
 import pytest
 
 from itential_mcp import config as config_module
+from itential_mcp import defaults
+from itential_mcp import runtime
+from itential_mcp.cli import argument_groups
 from itential_mcp.config import validate_tool_name, Tool, EndpointTool
 from itential_mcp.config.converters import (
     server_to_dict,
@@ -617,17 +620,9 @@ class TestTLSCertificateConfiguration:
 
         cfg = config_module.get()
 
-        # Environment should override file
-        # Note: Current behavior may be that file overrides env, so test actual behavior
-        # If environment doesn't override, we can change test to document current behavior
-        if cfg.server.certificate_file == file_cert_path:
-            # File overrides environment (current behavior)
-            assert cfg.server.certificate_file == file_cert_path
-            assert cfg.server.private_key_file == file_key_path
-        else:
-            # Environment overrides file (expected behavior)
-            assert cfg.server.certificate_file == env_cert_path
-            assert cfg.server.private_key_file == env_key_path
+        # Environment must override the config file (documented precedence).
+        assert cfg.server.certificate_file == env_cert_path
+        assert cfg.server.private_key_file == env_key_path
 
     def test_server_dict_includes_tls_fields(self, monkeypatch):
         """Test that server property dict includes TLS certificate fields."""
@@ -644,3 +639,627 @@ class TestTLSCertificateConfiguration:
         # When empty strings, the server dict contains None values
         assert server_dict["certificate_file"] is None
         assert server_dict["private_key_file"] is None
+
+
+def _clear_itential_env(monkeypatch):
+    """Remove every ITENTIAL_MCP_* variable from the environment.
+
+    Args:
+        monkeypatch: The pytest monkeypatch fixture.
+
+    Returns:
+        None.
+
+    Raises:
+        None.
+    """
+    for key in list(os.environ.keys()):
+        if key.startswith("ITENTIAL_MCP_"):
+            monkeypatch.delenv(key, raising=False)
+
+
+def _write_config_file(tmp_path, section: str, key: str, value: str):
+    """Write a minimal single-key config file and return its path.
+
+    Args:
+        tmp_path: pytest tmp_path fixture directory.
+        section: The config file section name (e.g. "server").
+        key: The bare key name to write within the section.
+        value: The string value to write for the key.
+
+    Returns:
+        str: The path to the written config file.
+
+    Raises:
+        None.
+    """
+    config_path = tmp_path / "test.ini"
+    cp = configparser.ConfigParser()
+    cp[section] = {key: value}
+    with open(config_path, "w") as f:
+        cp.write(f)
+    return str(config_path)
+
+
+# Enumeration of all 39 env-backed fields across ServerConfig (14),
+# AuthConfig (15), and PlatformConfig (10), verified directly against
+# src/itential_mcp/config/models.py. Each tuple is:
+#   (section, file_key, env_var, file_value, env_value, expected)
+# "section" is the config-file section name and file_key prefix used to
+# build the [section] key=value entry (auth fields use "server" with an
+# "auth_" prefixed key, matching the server_auth_ / auth_ handling in
+# loaders.py).
+_PRECEDENCE_CASES = [
+    # --- ServerConfig (14) ---
+    ("server", "transport", "ITENTIAL_MCP_SERVER_TRANSPORT", "stdio", "sse", "sse"),
+    ("server", "host", "ITENTIAL_MCP_SERVER_HOST", "10.0.0.1", "10.0.0.2", "10.0.0.2"),
+    ("server", "port", "ITENTIAL_MCP_SERVER_PORT", "8000", "9001", 9001),
+    (
+        "server",
+        "certificate_file",
+        "ITENTIAL_MCP_SERVER_CERTIFICATE_FILE",
+        "/file/cert.pem",
+        "/env/cert.pem",
+        "/env/cert.pem",
+    ),
+    (
+        "server",
+        "private_key_file",
+        "ITENTIAL_MCP_SERVER_PRIVATE_KEY_FILE",
+        "/file/key.pem",
+        "/env/key.pem",
+        "/env/key.pem",
+    ),
+    (
+        "server",
+        "path",
+        "ITENTIAL_MCP_SERVER_PATH",
+        "/file-path",
+        "/env-path",
+        "/env-path",
+    ),
+    (
+        "server",
+        "log_level",
+        "ITENTIAL_MCP_SERVER_LOG_LEVEL",
+        "DEBUG",
+        "ERROR",
+        "ERROR",
+    ),
+    (
+        "server",
+        "include_tags",
+        "ITENTIAL_MCP_SERVER_INCLUDE_TAGS",
+        "file_tag",
+        "env_tag",
+        "env_tag",
+    ),
+    (
+        "server",
+        "exclude_tags",
+        "ITENTIAL_MCP_SERVER_EXCLUDE_TAGS",
+        "file_tag",
+        "env_tag",
+        "env_tag",
+    ),
+    (
+        "server",
+        "tools_path",
+        "ITENTIAL_MCP_SERVER_TOOLS_PATH",
+        "/file/tools",
+        "/env/tools",
+        "/env/tools",
+    ),
+    (
+        "server",
+        "keepalive_interval",
+        "ITENTIAL_MCP_SERVER_KEEPALIVE_INTERVAL",
+        "100",
+        "200",
+        200,
+    ),
+    (
+        "server",
+        "response_format",
+        "ITENTIAL_MCP_SERVER_RESPONSE_FORMAT",
+        "json",
+        "toon",
+        "toon",
+    ),
+    (
+        "server",
+        "test_connection_on_startup",
+        "ITENTIAL_MCP_SERVER_TEST_CONNECTION_ON_STARTUP",
+        "false",
+        "true",
+        True,
+    ),
+    (
+        "server",
+        "startup_test_timeout",
+        "ITENTIAL_MCP_SERVER_STARTUP_TEST_TIMEOUT",
+        "10",
+        "20",
+        20,
+    ),
+    # --- AuthConfig (15), written under the [auth] file section using the
+    # bare field name. (Note: [server] auth_<field> = ... is a separate,
+    # pre-existing dispatch quirk in load_config()'s prefix matching --
+    # "server_" is matched before the "server_auth_"/"auth_" branch is
+    # checked, so an auth_* key under [server] is silently dropped rather
+    # than routed to AuthConfig. Out of scope for this fix -- config/models.py
+    # and the section-dispatch logic are untouched. [auth] is the correct,
+    # currently-working file section for these fields.)
+    (
+        "auth",
+        "type",
+        "ITENTIAL_MCP_SERVER_AUTH_TYPE",
+        "jwt",
+        "oauth_proxy",
+        "oauth_proxy",
+    ),
+    (
+        "auth",
+        "jwks_uri",
+        "ITENTIAL_MCP_SERVER_AUTH_JWKS_URI",
+        "https://file.example.com/jwks.json",
+        "https://env.example.com/jwks.json",
+        "https://env.example.com/jwks.json",
+    ),
+    (
+        "auth",
+        "public_key",
+        "ITENTIAL_MCP_SERVER_AUTH_PUBLIC_KEY",
+        "file-key",
+        "env-key",
+        "env-key",
+    ),
+    (
+        "auth",
+        "issuer",
+        "ITENTIAL_MCP_SERVER_AUTH_ISSUER",
+        "https://file.example.com/",
+        "https://env.example.com/",
+        "https://env.example.com/",
+    ),
+    (
+        "auth",
+        "audience",
+        "ITENTIAL_MCP_SERVER_AUTH_AUDIENCE",
+        "file-aud",
+        "env-aud",
+        "env-aud",
+    ),
+    (
+        "auth",
+        "algorithm",
+        "ITENTIAL_MCP_SERVER_AUTH_ALGORITHM",
+        "HS256",
+        "RS256",
+        "RS256",
+    ),
+    (
+        "auth",
+        "required_scopes",
+        "ITENTIAL_MCP_SERVER_AUTH_REQUIRED_SCOPES",
+        "file:scope",
+        "env:scope",
+        "env:scope",
+    ),
+    (
+        "auth",
+        "oauth_client_id",
+        "ITENTIAL_MCP_SERVER_AUTH_OAUTH_CLIENT_ID",
+        "file-client-id",
+        "env-client-id",
+        "env-client-id",
+    ),
+    (
+        "auth",
+        "oauth_client_secret",
+        "ITENTIAL_MCP_SERVER_AUTH_OAUTH_CLIENT_SECRET",
+        "file-secret",
+        "env-secret",
+        "env-secret",
+    ),
+    (
+        "auth",
+        "oauth_authorization_url",
+        "ITENTIAL_MCP_SERVER_AUTH_OAUTH_AUTHORIZATION_URL",
+        "https://file.example.com/authorize",
+        "https://env.example.com/authorize",
+        "https://env.example.com/authorize",
+    ),
+    (
+        "auth",
+        "oauth_token_url",
+        "ITENTIAL_MCP_SERVER_AUTH_OAUTH_TOKEN_URL",
+        "https://file.example.com/token",
+        "https://env.example.com/token",
+        "https://env.example.com/token",
+    ),
+    (
+        "auth",
+        "oauth_userinfo_url",
+        "ITENTIAL_MCP_SERVER_AUTH_OAUTH_USERINFO_URL",
+        "https://file.example.com/userinfo",
+        "https://env.example.com/userinfo",
+        "https://env.example.com/userinfo",
+    ),
+    (
+        "auth",
+        "oauth_scopes",
+        "ITENTIAL_MCP_SERVER_AUTH_OAUTH_SCOPES",
+        "file-scope",
+        "env-scope",
+        "env-scope",
+    ),
+    (
+        "auth",
+        "oauth_redirect_uri",
+        "ITENTIAL_MCP_SERVER_AUTH_OAUTH_REDIRECT_URI",
+        "https://file.example.com/callback",
+        "https://env.example.com/callback",
+        "https://env.example.com/callback",
+    ),
+    (
+        "auth",
+        "oauth_provider_type",
+        "ITENTIAL_MCP_SERVER_AUTH_OAUTH_PROVIDER_TYPE",
+        "generic",
+        "okta",
+        "okta",
+    ),
+    # --- PlatformConfig (10) ---
+    (
+        "platform",
+        "host",
+        "ITENTIAL_MCP_PLATFORM_HOST",
+        "file-host",
+        "env-host",
+        "env-host",
+    ),
+    ("platform", "port", "ITENTIAL_MCP_PLATFORM_PORT", "8080", "8443", 8443),
+    (
+        "platform",
+        "disable_tls",
+        "ITENTIAL_MCP_PLATFORM_DISABLE_TLS",
+        "false",
+        "true",
+        True,
+    ),
+    (
+        "platform",
+        "disable_verify",
+        "ITENTIAL_MCP_PLATFORM_DISABLE_VERIFY",
+        "false",
+        "true",
+        True,
+    ),
+    (
+        "platform",
+        "user",
+        "ITENTIAL_MCP_PLATFORM_USER",
+        "file-user",
+        "env-user",
+        "env-user",
+    ),
+    (
+        "platform",
+        "password",
+        "ITENTIAL_MCP_PLATFORM_PASSWORD",
+        "file-pass",
+        "env-pass",
+        "env-pass",
+    ),
+    (
+        "platform",
+        "client_id",
+        "ITENTIAL_MCP_PLATFORM_CLIENT_ID",
+        "file-client-id",
+        "env-client-id",
+        "env-client-id",
+    ),
+    (
+        "platform",
+        "client_secret",
+        "ITENTIAL_MCP_PLATFORM_CLIENT_SECRET",
+        "file-secret",
+        "env-secret",
+        "env-secret",
+    ),
+    ("platform", "timeout", "ITENTIAL_MCP_PLATFORM_TIMEOUT", "15", "45", 45),
+    ("platform", "ttl", "ITENTIAL_MCP_PLATFORM_TTL", "60", "120", 120),
+]
+
+assert len(_PRECEDENCE_CASES) == 39, (
+    f"Expected 39 env-backed fields, found {len(_PRECEDENCE_CASES)}"
+)
+
+# Pre-existing, out-of-scope bug in loaders.py's auth-prefix stripping:
+# `key.replace("auth_", "")` is a global (not prefix-only) replace, so any
+# auth field whose bare name itself contains the substring "auth_" (every
+# oauth_* field, since "oauth_" contains "auth_") gets mangled when read
+# from the [auth] file section, e.g. "oauth_client_id" -> "oclient_id".
+# This bug exists on `devel` HEAD prior to this fix and is unrelated to the
+# env/file precedence issue being fixed here (config/models.py and the
+# section-dispatch/prefix-stripping logic in loaders.py are out of scope
+# per the fix plan). It only affects *file-only* resolution of these
+# fields; env vars for these fields are unaffected because env-backed
+# resolution never goes through this file-parsing path. These fields are
+# excluded from the file-beats-default check below and are still fully
+# covered by the env-beats-file parametrization above.
+_AUTH_PREFIX_BUG_FIELDS = {
+    (section, key)
+    for section, key, *_ in _PRECEDENCE_CASES
+    if section == "auth" and key.startswith("oauth_")
+}
+
+_FILE_BEATS_DEFAULT_CASES = [
+    c for c in _PRECEDENCE_CASES if (c[0], c[1]) not in _AUTH_PREFIX_BUG_FIELDS
+]
+
+
+def _get_config_attr(cfg, section: str, file_key: str):
+    """Resolve the config attribute value for a precedence test case.
+
+    Args:
+        cfg: The loaded Config instance.
+        section: The config-file section name used in the test case
+            ("server", "auth", or "platform").
+        file_key: The bare field name used in the test case.
+
+    Returns:
+        The corresponding attribute value on cfg.server / cfg.auth /
+        cfg.platform.
+
+    Raises:
+        None.
+    """
+    if section == "platform":
+        return getattr(cfg.platform, file_key)
+    if section == "auth":
+        return getattr(cfg.auth, file_key)
+    return getattr(cfg.server, file_key)
+
+
+class TestConfigPrecedence:
+    """Verify env vars (and CLI flags funneled into os.environ) beat the
+    config file, which in turn beats defaults -- across all 39 env-backed
+    fields on ServerConfig, AuthConfig, and PlatformConfig.
+    """
+
+    def test_sse_transport_not_downgraded_by_config_file(self, tmp_path, monkeypatch):
+        """Regression test for the reported bug symptom.
+
+        A config file setting transport = stdio must not silently override
+        ITENTIAL_MCP_SERVER_TRANSPORT=sse from the environment.
+        """
+        _clear_itential_env(monkeypatch)
+
+        config_path = _write_config_file(tmp_path, "server", "transport", "stdio")
+        monkeypatch.setenv("ITENTIAL_MCP_CONFIG", config_path)
+        monkeypatch.setenv("ITENTIAL_MCP_SERVER_TRANSPORT", "sse")
+
+        cfg = config_module.get()
+
+        assert cfg.server.transport == "sse"
+
+    @pytest.mark.parametrize(
+        "section,file_key,env_var,file_value,env_value,expected",
+        _PRECEDENCE_CASES,
+        ids=[f"{c[0]}.{c[1]}" for c in _PRECEDENCE_CASES],
+    )
+    def test_env_beats_file_for_every_field(
+        self,
+        tmp_path,
+        monkeypatch,
+        section,
+        file_key,
+        env_var,
+        file_value,
+        env_value,
+        expected,
+    ):
+        """Env var wins over config file for every affected field."""
+        _clear_itential_env(monkeypatch)
+
+        config_path = _write_config_file(tmp_path, section, file_key, file_value)
+        monkeypatch.setenv("ITENTIAL_MCP_CONFIG", config_path)
+        monkeypatch.setenv(env_var, env_value)
+
+        cfg = config_module.get()
+
+        assert _get_config_attr(cfg, section, file_key) == expected
+
+    @pytest.mark.parametrize(
+        "section,file_key,env_var,file_value,env_value,expected",
+        _FILE_BEATS_DEFAULT_CASES,
+        ids=[f"{c[0]}.{c[1]}" for c in _FILE_BEATS_DEFAULT_CASES],
+    )
+    def test_file_beats_default_when_env_unset(
+        self,
+        tmp_path,
+        monkeypatch,
+        section,
+        file_key,
+        env_var,
+        file_value,
+        env_value,
+        expected,
+    ):
+        """Config file value wins over default when the env var is unset.
+
+        Regression guard confirming the fix isn't overly aggressive -- the
+        file value must still apply when nothing in the environment
+        contests it.
+        """
+        _clear_itential_env(monkeypatch)
+
+        config_path = _write_config_file(tmp_path, section, file_key, file_value)
+        monkeypatch.setenv("ITENTIAL_MCP_CONFIG", config_path)
+
+        cfg = config_module.get()
+        actual = _get_config_attr(cfg, section, file_key)
+
+        # Compare against the type-coerced file value using the same
+        # transform expected/env_value went through (bool/int fields use
+        # their real type in "expected" already, so compare structurally).
+        if isinstance(expected, bool):
+            assert actual == (file_value.strip().lower() in {"true", "1", "yes", "on"})
+        elif isinstance(expected, int):
+            assert actual == int(file_value)
+        else:
+            assert actual == file_value
+
+    _DEFAULT_FALLBACK_CASES = [
+        c
+        for c in _PRECEDENCE_CASES
+        if (c[0], c[1])
+        in {
+            ("server", "transport"),
+            ("auth", "type"),
+            ("platform", "host"),
+        }
+    ]
+
+    @pytest.mark.parametrize(
+        "section,file_key,env_var,file_value,env_value,expected",
+        _DEFAULT_FALLBACK_CASES,
+        ids=[f"{c[0]}.{c[1]}" for c in _DEFAULT_FALLBACK_CASES],
+    )
+    def test_default_when_neither_env_nor_file_set(
+        self,
+        monkeypatch,
+        section,
+        file_key,
+        env_var,
+        file_value,
+        env_value,
+        expected,
+    ):
+        """Default value wins when neither env var nor config file is set."""
+        _clear_itential_env(monkeypatch)
+        monkeypatch.delenv("ITENTIAL_MCP_CONFIG", raising=False)
+
+        cfg = config_module.get()
+
+        if section == "platform":
+            assert cfg.platform.host == defaults.ITENTIAL_MCP_PLATFORM_HOST
+        elif section == "auth":
+            assert cfg.auth.type == defaults.ITENTIAL_MCP_SERVER_AUTH_TYPE
+        else:
+            assert cfg.server.transport == defaults.ITENTIAL_MCP_SERVER_TRANSPORT
+
+    def test_empty_string_env_var_counts_as_set(self, tmp_path, monkeypatch):
+        """An env var set to "" must still beat the config file value.
+
+        Matches parser.py's `in os.environ` semantics -- membership, not
+        truthiness, determines precedence.
+        """
+        _clear_itential_env(monkeypatch)
+
+        config_path = _write_config_file(tmp_path, "server", "include_tags", "file_tag")
+        monkeypatch.setenv("ITENTIAL_MCP_CONFIG", config_path)
+        monkeypatch.setenv("ITENTIAL_MCP_SERVER_INCLUDE_TAGS", "")
+
+        assert "ITENTIAL_MCP_SERVER_INCLUDE_TAGS" in os.environ
+
+        cfg = config_module.get()
+
+        assert cfg.server.include_tags == ""
+        assert cfg.server.include_tags != "file_tag"
+
+    def test_cli_flag_beats_file_when_no_env_var(self, tmp_path, monkeypatch):
+        """A CLI flag (funneled into os.environ by parser.py) beats the
+        config file when no real env var is set."""
+        _clear_itential_env(monkeypatch)
+        # _get_arguments_from_config() is an independent lru_cache in
+        # cli/argument_groups.py. It is unrelated to this fix but some
+        # tests in tests/test_cli.py mock its fields() dependency and
+        # populate this cache with mocked data without clearing it
+        # afterward, which otherwise leaks into any later test in the
+        # same session that calls parse_args(). Clear it defensively so
+        # this test is order-independent.
+        argument_groups._get_arguments_from_config.cache_clear()
+
+        config_path = _write_config_file(tmp_path, "server", "transport", "stdio")
+        monkeypatch.setenv("ITENTIAL_MCP_CONFIG", config_path)
+
+        runtime.parse_args(["run", "--transport", "sse"])
+
+        cfg = config_module.get()
+
+        assert cfg.server.transport == "sse"
+
+    def test_env_var_beats_cli_flag_and_file(self, tmp_path, monkeypatch):
+        """A real env var beats both a CLI flag and the config file.
+
+        parser.py's own `if envkey not in os.environ` guard prevents the
+        CLI flag from overwriting a real env var; the loader fix then
+        keeps the file value out too.
+        """
+        _clear_itential_env(monkeypatch)
+        argument_groups._get_arguments_from_config.cache_clear()
+
+        config_path = _write_config_file(tmp_path, "server", "transport", "stdio")
+        monkeypatch.setenv("ITENTIAL_MCP_CONFIG", config_path)
+        monkeypatch.setenv("ITENTIAL_MCP_SERVER_TRANSPORT", "http")
+
+        runtime.parse_args(["run", "--transport", "sse"])
+
+        # The real env var must not have been overwritten by the CLI flag.
+        assert os.environ["ITENTIAL_MCP_SERVER_TRANSPORT"] == "http"
+
+        cfg = config_module.get()
+
+        assert cfg.server.transport == "http"
+
+    def test_unknown_file_key_passes_through_unfiltered(self, tmp_path, monkeypatch):
+        """An unrecognized field name must reach the constructor unfiltered.
+
+        _env_key_for_field() returns None for a name with no matching
+        pydantic field, so _filter_file_data() passes it through
+        unchanged rather than dropping it. Note: ServerConfig (a Pydantic
+        dataclass without extra="forbid") silently ignores unknown
+        constructor kwargs -- that behavior is pydantic's own default and
+        predates this fix; the assertion here is that the guard itself
+        does not add any additional filtering for unknown keys.
+        """
+        _clear_itential_env(monkeypatch)
+
+        config_path = _write_config_file(
+            tmp_path, "server", "not_a_real_field", "some-value"
+        )
+        monkeypatch.setenv("ITENTIAL_MCP_CONFIG", config_path)
+
+        # Must not raise from the guard itself; server config still loads
+        # using its defaults for every real field.
+        cfg = config_module.get()
+        assert cfg.server.transport == defaults.ITENTIAL_MCP_SERVER_TRANSPORT
+
+    def test_unknown_file_key_with_invalid_value_on_real_field_raises(
+        self, tmp_path, monkeypatch
+    ):
+        """A real field with an invalid file value still raises validation
+        errors, proving the guard does not swallow genuine bad input."""
+        _clear_itential_env(monkeypatch)
+
+        config_path = _write_config_file(tmp_path, "server", "transport", "bogus")
+        monkeypatch.setenv("ITENTIAL_MCP_CONFIG", config_path)
+
+        with pytest.raises(Exception):
+            config_module.get()
+
+    def test_auth_server_auth_prefix_env_resolution(self, tmp_path, monkeypatch):
+        """Proves the SERVER_AUTH env-key resolution is used, not a naive
+        ITENTIAL_MCP_AUTH_* guess."""
+        _clear_itential_env(monkeypatch)
+
+        config_path = _write_config_file(tmp_path, "auth", "type", "jwt")
+        monkeypatch.setenv("ITENTIAL_MCP_CONFIG", config_path)
+        monkeypatch.setenv("ITENTIAL_MCP_SERVER_AUTH_TYPE", "none")
+
+        cfg = config_module.get()
+
+        assert cfg.auth.type == "none"
