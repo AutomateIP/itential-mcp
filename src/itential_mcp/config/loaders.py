@@ -262,6 +262,34 @@ def _split_comma_separated(value: str | None) -> list[str]:
     return [item.strip() for item in value.split(",") if item.strip()]
 
 
+def _strip_auth_prefix(key: str) -> str:
+    """Strip only the section-derived auth prefix from a file config key.
+
+    Handles both documented spellings:
+      - "[server]" keys arrive as "server_auth_<field>" (e.g.
+        "server_auth_oauth_client_id")
+      - "[auth]" keys arrive as "auth_<field>" (e.g. "auth_oauth_client_id")
+
+    Only the leading section-derived prefix is removed; substrings are never
+    touched, so "oauth_*" field names survive intact (fixes the
+    "oauth_client_id" -> "oclient_id" mangling).
+
+    Args:
+        key: The flat config key produced by _parse_config_file(), e.g.
+            "server_auth_oauth_client_id" or "auth_type".
+
+    Returns:
+        The bare AuthConfig field name with only the section-derived
+        prefix removed.
+
+    Raises:
+        None.
+    """
+    if key.startswith("server_auth_"):
+        return key.removeprefix("server_auth_")
+    return key.removeprefix("auth_")
+
+
 def _split_space_or_comma_separated(value: str | None) -> list[str]:
     """Convert space or comma separated string to a list of trimmed values.
 
@@ -334,16 +362,23 @@ def load_config() -> Config:
     auth_data = {}
     platform_data = {}
 
-    # Extract server config from file
+    # Extract server config from file. The auth-prefix checks must run
+    # before the broad "server_" check: server_auth_* also starts with
+    # "server_", so testing that prefix first would silently absorb
+    # documented [server] auth_* keys into server_data (and pydantic would
+    # drop them, since ServerConfig has no such fields).
     for key, value in file_config_data.items():
-        if key.startswith("server_"):
-            server_data[key.replace("server_", "")] = value
-        elif key.startswith("auth_") or key.startswith("server_auth_"):
-            # Handle both auth_ and server_auth_ prefixes
-            clean_key = key.replace("server_auth_", "").replace("auth_", "")
+        if key.startswith("server_auth_") or key.startswith("auth_"):
+            # Auth fields: documented under [server] as auth_* / auth_oauth_*
+            # (see docs/mcp.conf.example) and also accepted under [auth] as
+            # bare field names. Strip only the section-derived prefix, never
+            # a substring, so oauth_* field names survive intact.
+            clean_key = _strip_auth_prefix(key)
             auth_data[clean_key] = value
+        elif key.startswith("server_"):
+            server_data[key.removeprefix("server_")] = value
         elif key.startswith("platform_"):
-            platform_data[key.replace("platform_", "")] = value
+            platform_data[key.removeprefix("platform_")] = value
 
     # Create config objects. Env-backed keys are filtered out of the
     # file-derived kwargs so the corresponding default_factory fires and
