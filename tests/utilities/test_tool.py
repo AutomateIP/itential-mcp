@@ -111,6 +111,23 @@ class TestGetJsonSchema:
 
         assert "anyOf" in schema
 
+    def test_get_json_schema_templates_get_templates(self):
+        """Regression test: get_templates now returns a RootModel
+        (GetTemplatesResponse) so get_json_schema must no longer raise
+        ValueError. Previously this tool's bare `list[...]` return
+        annotation tripped the "missing or invalid output_schema" warning
+        at server startup."""
+        from itential_mcp.tools import templates
+
+        schema = get_json_schema(templates.get_templates)
+
+        # RootModel wrapping a list produces a top-level array schema, not
+        # an object schema. server.py's own "== object" guard is what
+        # decides whether to adopt this as a custom output_schema (it does
+        # not, for an array-rooted schema) -- this test only pins that
+        # get_json_schema itself succeeds without raising.
+        assert schema["type"] == "array"
+
 
 class TestTagsDecorator:
     """Test the tags decorator functionality"""
