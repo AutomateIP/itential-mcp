@@ -328,8 +328,6 @@ Config example: `docs/mcp.conf.example`
 
 5. **Service plugin implicit contract** — plugins must have a `Service` class with a `name` attribute, but this is undocumented at the call site. Failed plugin loads are logged at DEBUG and silently skipped, which can cause confusing "method not found" errors at runtime.
 
-6. **`templates.py:get_templates`** returns `list` instead of a `RootModel` — only tool that doesn't return a Pydantic model. Not enforced by the type system.
-
 ### Areas in Flux
 
 - FastMCP API compatibility: v0.12.1 fixed a breaking change where `include_tags`/`exclude_tags` kwargs were removed in FastMCP 3.x in favor of `enable()`/`disable()` API. Watch for further FastMCP API changes.

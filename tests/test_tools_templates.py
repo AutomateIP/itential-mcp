@@ -5,13 +5,21 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 
+from fastmcp.tools import Tool
+
+from itential_mcp.tools import templates as templates_module
 from itential_mcp.tools.templates import (
     get_templates,
     describe_template,
     create_template,
     update_template,
 )
-from itential_mcp.models.templates import GetTemplatesElement, DescribeTemplateResponse
+from itential_mcp.models.templates import (
+    GetTemplatesElement,
+    GetTemplatesResponse,
+    DescribeTemplateResponse,
+)
+from itential_mcp.utilities.tool import get_json_schema
 
 
 class TestAutomationStudioTemplates:
@@ -84,25 +92,25 @@ class TestAutomationStudioTemplates:
         mock_context.debug.assert_called_once_with("inside get_templates(...)")
 
         # Verify response structure and data
-        assert isinstance(result, list)
-        assert len(result) == 3
+        assert isinstance(result, GetTemplatesResponse)
+        assert len(result.root) == 3
 
         # Check first template (TextFSM)
-        assert isinstance(result[0], GetTemplatesElement)
-        assert result[0].name == "Cisco Show Version Parser"
-        assert result[0].description == "Parse Cisco show version output"
-        assert result[0].type == "textfsm"
+        assert isinstance(result.root[0], GetTemplatesElement)
+        assert result.root[0].name == "Cisco Show Version Parser"
+        assert result.root[0].description == "Parse Cisco show version output"
+        assert result.root[0].type == "textfsm"
 
         # Check second template (Jinja2)
-        assert isinstance(result[1], GetTemplatesElement)
-        assert result[1].name == "Interface Configuration Generator"
-        assert result[1].description == "Generate interface configuration"
-        assert result[1].type == "jinja2"
+        assert isinstance(result.root[1], GetTemplatesElement)
+        assert result.root[1].name == "Interface Configuration Generator"
+        assert result.root[1].description == "Generate interface configuration"
+        assert result.root[1].type == "jinja2"
 
         # Check third template (TextFSM)
-        assert isinstance(result[2], GetTemplatesElement)
-        assert result[2].name == "BGP Neighbor Parser"
-        assert result[2].type == "textfsm"
+        assert isinstance(result.root[2], GetTemplatesElement)
+        assert result.root[2].name == "BGP Neighbor Parser"
+        assert result.root[2].type == "textfsm"
 
     @pytest.mark.asyncio
     async def test_get_templates_success_textfsm_filter(
@@ -136,10 +144,11 @@ class TestAutomationStudioTemplates:
         )
 
         # Verify response
-        assert len(result) == 2
-        assert all(template.type == "textfsm" for template in result)
-        assert result[0].name == "Cisco Parser"
-        assert result[1].name == "Juniper Parser"
+        assert isinstance(result, GetTemplatesResponse)
+        assert len(result.root) == 2
+        assert all(template.type == "textfsm" for template in result.root)
+        assert result.root[0].name == "Cisco Parser"
+        assert result.root[1].name == "Juniper Parser"
 
     @pytest.mark.asyncio
     async def test_get_templates_success_jinja2_filter(self, mock_context, mock_client):
@@ -165,9 +174,10 @@ class TestAutomationStudioTemplates:
         )
 
         # Verify response
-        assert len(result) == 1
-        assert result[0].type == "jinja2"
-        assert result[0].name == "Config Generator"
+        assert isinstance(result, GetTemplatesResponse)
+        assert len(result.root) == 1
+        assert result.root[0].type == "jinja2"
+        assert result.root[0].name == "Config Generator"
 
     @pytest.mark.asyncio
     async def test_get_templates_empty_response(self, mock_context, mock_client):
@@ -183,8 +193,9 @@ class TestAutomationStudioTemplates:
         )
 
         # Verify empty response handling
-        assert isinstance(result, list)
-        assert len(result) == 0
+        assert isinstance(result, GetTemplatesResponse)
+        assert result.root == []
+        assert len(result.root) == 0
 
     @pytest.mark.asyncio
     async def test_get_templates_missing_optional_fields(
@@ -215,17 +226,17 @@ class TestAutomationStudioTemplates:
         result = await get_templates(mock_context, template_type=None)
 
         # Verify handling of missing fields
-        assert len(result) == 2
+        assert len(result.root) == 2
 
         # First template with missing description
-        assert result[0].name == "Minimal Template"
-        assert result[0].description is None
-        assert result[0].type == "textfsm"
+        assert result.root[0].name == "Minimal Template"
+        assert result.root[0].description is None
+        assert result.root[0].type == "textfsm"
 
         # Second template with null description
-        assert result[1].name == "Null Description Template"
-        assert result[1].description is None
-        assert result[1].type == "jinja2"
+        assert result.root[1].name == "Null Description Template"
+        assert result.root[1].description is None
+        assert result.root[1].type == "jinja2"
 
     @pytest.mark.asyncio
     async def test_get_templates_service_error_propagation(
@@ -269,8 +280,8 @@ class TestAutomationStudioTemplates:
         result = await get_templates(mock_context, template_type="textfsm")
 
         # Verify model validation passed
-        assert len(result) == 1
-        template = result[0]
+        assert len(result.root) == 1
+        template = result.root[0]
         assert isinstance(template, GetTemplatesElement)
         assert template.name == "Valid Template"
         assert template.description == "This is a valid template"
@@ -317,15 +328,17 @@ class TestAutomationStudioTemplates:
         result = await get_templates(mock_context, template_type=None)
 
         # Verify large response is handled correctly
-        assert len(result) == 250
-        assert all(isinstance(template, GetTemplatesElement) for template in result)
+        assert len(result.root) == 250
+        assert all(
+            isinstance(template, GetTemplatesElement) for template in result.root
+        )
 
         # Spot check a few templates
-        assert result[0].name == "Template 0"
-        assert result[0].type == "textfsm"
+        assert result.root[0].name == "Template 0"
+        assert result.root[0].type == "textfsm"
 
-        assert result[249].name == "Template 249"
-        assert result[249].type == "jinja2"
+        assert result.root[249].name == "Template 249"
+        assert result.root[249].type == "jinja2"
 
     @pytest.mark.asyncio
     async def test_get_templates_data_transformation(self, mock_context, mock_client):
@@ -350,8 +363,8 @@ class TestAutomationStudioTemplates:
         result = await get_templates(mock_context, template_type=None)
 
         # Verify transformation extracts only the model fields
-        assert len(result) == 1
-        template = result[0]
+        assert len(result.root) == 1
+        template = result.root[0]
 
         # Check that only model fields are present
         assert template.name == "Transform Test Template"
@@ -380,19 +393,66 @@ class TestAutomationStudioTemplates:
         result = await get_templates(mock_context, template_type=None)
 
         # Verify mixed types are handled correctly
-        assert len(result) == 4
+        assert len(result.root) == 4
 
         # Check types are preserved
-        types = [template.type for template in result]
+        types = [template.type for template in result.root]
         assert types.count("textfsm") == 2
         assert types.count("jinja2") == 2
 
         # Verify specific templates
-        textfsm_templates = [t for t in result if t.type == "textfsm"]
-        jinja2_templates = [t for t in result if t.type == "jinja2"]
+        textfsm_templates = [t for t in result.root if t.type == "textfsm"]
+        jinja2_templates = [t for t in result.root if t.type == "jinja2"]
 
         assert len(textfsm_templates) == 2
         assert len(jinja2_templates) == 2
+
+
+class TestGetTemplatesOutputSchema:
+    """Test cases pinning get_templates' output_schema/registration shape.
+
+    These guard the fix that routes get_templates through the
+    GetTemplatesResponse RootModel: the tool is not wire-broken today (see
+    the RootModel docstring), but before this fix its bare `list[...]`
+    return annotation caused `get_json_schema` to raise `ValueError` on
+    every server startup. These tests lock in that the warning path is
+    gone and that the final FastMCP-registered schema stays spec-compliant
+    (object-rooted) either way.
+    """
+
+    def test_get_json_schema_no_longer_raises(self):
+        """get_json_schema(get_templates) must succeed now that the return
+        annotation is a RootModel subclass (GetTemplatesResponse), instead
+        of raising ValueError for a bare list[...] annotation."""
+        schema = get_json_schema(templates_module.get_templates)
+
+        # RootModel wrapping a list produces a top-level array schema.
+        assert schema["type"] == "array"
+
+    def test_fastmcp_registered_output_schema_is_object_rooted(self):
+        """The final FastMCP-registered output_schema must be object-rooted
+        (MCP spec requires an object at the schema root), regardless of
+        get_templates' underlying RootModel array schema."""
+        tool = Tool.from_function(templates_module.get_templates)
+
+        assert tool.output_schema["type"] == "object"
+        assert "result" in tool.output_schema["properties"]
+
+    def test_fastmcp_wraps_result_as_array(self):
+        """The FastMCP-wrapped `result` property must resolve to an array
+        schema, documenting that the wire payload is still a flat array
+        under `result` (same shape produced before this fix)."""
+        tool = Tool.from_function(templates_module.get_templates)
+
+        result_schema = tool.output_schema["properties"]["result"]
+
+        # The result property may be a direct schema or a $ref into $defs
+        # depending on pydantic's schema generation; resolve either form.
+        if "$ref" in result_schema:
+            ref_name = result_schema["$ref"].rsplit("/", 1)[-1]
+            result_schema = tool.output_schema["$defs"][ref_name]
+
+        assert result_schema["type"] == "array"
 
 
 class TestDescribeTemplate:

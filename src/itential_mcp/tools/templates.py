@@ -24,7 +24,7 @@ async def get_templates(
         Literal["textfsm", "jinja2"] | None,
         Field(description="Retrieve only templates of this type", default=None),
     ],
-) -> list[models.GetTemplatesElement]:
+) -> models.GetTemplatesResponse:
     """Get all templates from Automation Studio.
 
     Retrieves all templates from the Automation Studio, with optional filtering
@@ -45,9 +45,9 @@ async def get_templates(
             templating. Defaults to None to retrieve all template types.
 
     Returns:
-        list[models.GetTemplatesElement]: A list of template objects containing template
-            metadata including id, name, description, and type fields transformed
-            into GetTemplatesElement model objects.
+        models.GetTemplatesResponse: A RootModel wrapping a list of template
+            objects containing template metadata including name, description,
+            and type fields transformed into GetTemplatesElement model objects.
 
     Raises:
         Exception: If there is an error retrieving templates from the
@@ -68,7 +68,7 @@ async def get_templates(
             )
         )
 
-    return results
+    return models.GetTemplatesResponse(root=results)
 
 
 @annotate(
