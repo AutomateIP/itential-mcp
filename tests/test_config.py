@@ -17,6 +17,7 @@ from itential_mcp.config.converters import (
     platform_to_dict,
     auth_to_dict,
 )
+from itential_mcp.config.loaders import _strip_auth_prefix
 
 
 @pytest.fixture(autouse=True)
@@ -783,13 +784,13 @@ _PRECEDENCE_CASES = [
         20,
     ),
     # --- AuthConfig (15), written under the [auth] file section using the
-    # bare field name. (Note: [server] auth_<field> = ... is a separate,
-    # pre-existing dispatch quirk in load_config()'s prefix matching --
-    # "server_" is matched before the "server_auth_"/"auth_" branch is
-    # checked, so an auth_* key under [server] is silently dropped rather
-    # than routed to AuthConfig. Out of scope for this fix -- config/models.py
-    # and the section-dispatch logic are untouched. [auth] is the correct,
-    # currently-working file section for these fields.)
+    # bare field name. Note: the documented file spelling is actually
+    # [server] auth_<field> = ... (see docs/mcp.conf.example); [auth] is an
+    # undocumented alternate section that has also always been accepted.
+    # Both spellings now correctly route to AuthConfig and resolve field
+    # names without mangling (see test_server_section_auth_keys_route_to_auth_config
+    # and test_oauth_field_names_not_mangled for the [server] spelling and
+    # the oauth_* mangling fix respectively).
     (
         "auth",
         "type",
@@ -976,28 +977,7 @@ assert len(_PRECEDENCE_CASES) == 39, (
     f"Expected 39 env-backed fields, found {len(_PRECEDENCE_CASES)}"
 )
 
-# Pre-existing, out-of-scope bug in loaders.py's auth-prefix stripping:
-# `key.replace("auth_", "")` is a global (not prefix-only) replace, so any
-# auth field whose bare name itself contains the substring "auth_" (every
-# oauth_* field, since "oauth_" contains "auth_") gets mangled when read
-# from the [auth] file section, e.g. "oauth_client_id" -> "oclient_id".
-# This bug exists on `devel` HEAD prior to this fix and is unrelated to the
-# env/file precedence issue being fixed here (config/models.py and the
-# section-dispatch/prefix-stripping logic in loaders.py are out of scope
-# per the fix plan). It only affects *file-only* resolution of these
-# fields; env vars for these fields are unaffected because env-backed
-# resolution never goes through this file-parsing path. These fields are
-# excluded from the file-beats-default check below and are still fully
-# covered by the env-beats-file parametrization above.
-_AUTH_PREFIX_BUG_FIELDS = {
-    (section, key)
-    for section, key, *_ in _PRECEDENCE_CASES
-    if section == "auth" and key.startswith("oauth_")
-}
-
-_FILE_BEATS_DEFAULT_CASES = [
-    c for c in _PRECEDENCE_CASES if (c[0], c[1]) not in _AUTH_PREFIX_BUG_FIELDS
-]
+_FILE_BEATS_DEFAULT_CASES = list(_PRECEDENCE_CASES)
 
 
 def _get_config_attr(cfg, section: str, file_key: str):
@@ -1263,3 +1243,219 @@ class TestConfigPrecedence:
         cfg = config_module.get()
 
         assert cfg.auth.type == "none"
+
+
+# Auth-only subset of _PRECEDENCE_CASES, used to build the documented
+# "[server] auth_<field> = ..." spelling (see docs/mcp.conf.example) from
+# the existing "[auth] <field> = ..." rows.
+_AUTH_PRECEDENCE_CASES = [c for c in _PRECEDENCE_CASES if c[0] == "auth"]
+
+# A representative spread for bug #26, plus one oauth_* field to also
+# exercise bug #27 on the [server] spelling.
+_SERVER_AUTH_SAMPLE_KEYS = {"type", "jwks_uri", "public_key", "oauth_client_id"}
+_SERVER_AUTH_SAMPLE_CASES = [
+    c for c in _AUTH_PRECEDENCE_CASES if c[1] in _SERVER_AUTH_SAMPLE_KEYS
+]
+
+# All 8 oauth_* fields, for bug #27's mangling regression test.
+_OAUTH_FIELD_CASES = [c for c in _AUTH_PRECEDENCE_CASES if c[1].startswith("oauth_")]
+
+assert len(_OAUTH_FIELD_CASES) == 8, (
+    f"Expected 8 oauth_* fields, found {len(_OAUTH_FIELD_CASES)}"
+)
+
+
+def _write_server_auth_config_file(tmp_path, file_key: str, value: str):
+    """Write a config file with a single auth field under [server].
+
+    Mirrors the documented spelling from docs/mcp.conf.example, e.g.
+    "[server]\\nauth_type = jwt".
+
+    Args:
+        tmp_path: pytest tmp_path fixture directory.
+        file_key: The bare AuthConfig field name (e.g. "type",
+            "oauth_client_id").
+        value: The string value to write.
+
+    Returns:
+        str: The path to the written config file.
+
+    Raises:
+        None.
+    """
+    return _write_config_file(tmp_path, "server", f"auth_{file_key}", value)
+
+
+class TestConfigFileAuthSectionParsing:
+    """Regression tests for Tier B #26 and #27 (config-loader auth parsing).
+
+    #26: documented "[server] auth_*" / "[server] auth_oauth_*" file keys
+    were silently dropped because the broad "server_" dispatch check ran
+    before the more specific "server_auth_"/"auth_" check.
+
+    #27: a global (non-prefix) string replace mangled every oauth_* field
+    name (e.g. "oauth_client_id" -> "oclient_id") once it did reach the
+    auth arm.
+    """
+
+    @pytest.mark.parametrize(
+        "section,file_key,env_var,file_value,env_value,expected",
+        _SERVER_AUTH_SAMPLE_CASES,
+        ids=[f"server.auth_{c[1]}" for c in _SERVER_AUTH_SAMPLE_CASES],
+    )
+    def test_server_section_auth_keys_route_to_auth_config(
+        self,
+        tmp_path,
+        monkeypatch,
+        section,
+        file_key,
+        env_var,
+        file_value,
+        env_value,
+        expected,
+    ):
+        """Documented "[server] auth_<field>" keys must populate AuthConfig.
+
+        Pre-fix, these keys land in server_data (as "auth_<field>",
+        stripped only of "server_") and are silently dropped by
+        ServerConfig's constructor, so cfg.auth.<field> stays at its
+        default. Post-fix they route to auth_data with the field name
+        intact.
+        """
+        _clear_itential_env(monkeypatch)
+
+        config_path = _write_server_auth_config_file(tmp_path, file_key, file_value)
+        monkeypatch.setenv("ITENTIAL_MCP_CONFIG", config_path)
+
+        cfg = config_module.get()
+
+        assert getattr(cfg.auth, file_key) == file_value
+
+    @pytest.mark.parametrize(
+        "section,file_key,env_var,file_value,env_value,expected",
+        _OAUTH_FIELD_CASES,
+        ids=[f"server.auth_{c[1]}" for c in _OAUTH_FIELD_CASES],
+    )
+    def test_oauth_field_names_not_mangled_server_section(
+        self,
+        tmp_path,
+        monkeypatch,
+        section,
+        file_key,
+        env_var,
+        file_value,
+        env_value,
+        expected,
+    ):
+        """Every oauth_* field survives the documented [server] spelling.
+
+        Pre-fix: the [server] spelling drops entirely (bug #26). Once #26
+        is fixed without #27, the inner "auth_" substring in "oauth_*"
+        would still be stripped (e.g. "oauth_client_id" -> "oclient_id"),
+        so this must also fail pre-#27-fix.
+        """
+        _clear_itential_env(monkeypatch)
+
+        config_path = _write_server_auth_config_file(tmp_path, file_key, file_value)
+        monkeypatch.setenv("ITENTIAL_MCP_CONFIG", config_path)
+
+        cfg = config_module.get()
+
+        assert getattr(cfg.auth, file_key) == file_value
+
+    @pytest.mark.parametrize(
+        "section,file_key,env_var,file_value,env_value,expected",
+        _OAUTH_FIELD_CASES,
+        ids=[f"auth.{c[1]}" for c in _OAUTH_FIELD_CASES],
+    )
+    def test_oauth_field_names_not_mangled_auth_section(
+        self,
+        tmp_path,
+        monkeypatch,
+        section,
+        file_key,
+        env_var,
+        file_value,
+        env_value,
+        expected,
+    ):
+        """Every oauth_* field survives the undocumented [auth] spelling.
+
+        Pre-fix: "[auth] oauth_client_id" resolves to "oclient_id" via the
+        global replace, so cfg.auth.oauth_client_id stays None.
+        """
+        _clear_itential_env(monkeypatch)
+
+        config_path = _write_config_file(tmp_path, "auth", file_key, file_value)
+        monkeypatch.setenv("ITENTIAL_MCP_CONFIG", config_path)
+
+        cfg = config_module.get()
+
+        assert getattr(cfg.auth, file_key) == file_value
+
+    @pytest.mark.parametrize(
+        "raw_key,expected",
+        [
+            ("server_auth_oauth_client_id", "oauth_client_id"),
+            ("server_auth_type", "type"),
+            ("auth_oauth_client_id", "oauth_client_id"),
+            ("auth_type", "type"),
+            ("auth_required_scopes", "required_scopes"),
+        ],
+        ids=[
+            "server_auth_oauth_client_id",
+            "server_auth_type",
+            "auth_oauth_client_id",
+            "auth_type",
+            "auth_required_scopes",
+        ],
+    )
+    def test_strip_auth_prefix(self, raw_key, expected):
+        """Direct unit test of the _strip_auth_prefix() helper."""
+        assert _strip_auth_prefix(raw_key) == expected
+
+    def test_server_section_nonauth_keys_still_route_to_server(
+        self, tmp_path, monkeypatch
+    ):
+        """Plain [server] keys must still route to ServerConfig after the
+        dispatch-order reorder, not be accidentally diverted into auth."""
+        _clear_itential_env(monkeypatch)
+
+        config_path = _write_config_file(tmp_path, "server", "transport", "sse")
+        monkeypatch.setenv("ITENTIAL_MCP_CONFIG", config_path)
+
+        cfg = config_module.get()
+
+        assert cfg.server.transport == "sse"
+
+    def test_env_beats_server_section_auth_oauth_field(self, tmp_path, monkeypatch):
+        """ITENTIAL_MCP_SERVER_AUTH_OAUTH_CLIENT_ID still beats a
+        "[server] auth_oauth_client_id" file value.
+
+        Confirms #403's env/file precedence fix composes correctly with
+        the newly-fixed [server] auth dispatch path.
+        """
+        _clear_itential_env(monkeypatch)
+
+        config_path = _write_server_auth_config_file(
+            tmp_path, "oauth_client_id", "file-client-id"
+        )
+        monkeypatch.setenv("ITENTIAL_MCP_CONFIG", config_path)
+        monkeypatch.setenv("ITENTIAL_MCP_SERVER_AUTH_OAUTH_CLIENT_ID", "env-client-id")
+
+        cfg = config_module.get()
+
+        assert cfg.auth.oauth_client_id == "env-client-id"
+
+    def test_auth_section_still_works_unchanged(self, tmp_path, monkeypatch):
+        """The undocumented [auth] section (bare field names) must keep
+        working exactly as before -- no regression from the reorder or
+        the prefix-strip fix."""
+        _clear_itential_env(monkeypatch)
+
+        config_path = _write_config_file(tmp_path, "auth", "type", "jwt")
+        monkeypatch.setenv("ITENTIAL_MCP_CONFIG", config_path)
+
+        cfg = config_module.get()
+
+        assert cfg.auth.type == "jwt"
