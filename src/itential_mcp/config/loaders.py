@@ -12,6 +12,7 @@ It provides a clean separation between parsing logic and data models.
 from __future__ import annotations
 
 import os
+import functools
 import configparser
 
 from pathlib import Path
@@ -182,6 +183,67 @@ def _parse_config_file(file_path: Path) -> tuple[dict[str, Any], list[Tool]]:
     return config_data, tools
 
 
+def _env_key_for_field(cls: type, field_name: str) -> str | None:
+    """Return the env var name backing a config field, or None.
+
+    Reads the env key embedded in the field's ``default_factory``
+    (``partial(env_getter, env_key, default)``) via Pydantic's
+    ``__pydantic_fields__`` introspection attribute. This is necessary
+    because the env key is not always mechanically derivable from the
+    section name (e.g. auth fields are backed by
+    ``ITENTIAL_MCP_SERVER_AUTH_*``, not ``ITENTIAL_MCP_AUTH_*``).
+
+    Args:
+        cls: The Pydantic dataclass to inspect (e.g. ServerConfig).
+        field_name: The name of the field to resolve the env key for.
+
+    Returns:
+        The environment variable name backing the field's default_factory,
+        or None if the field is unknown or has no env-backed default_factory.
+
+    Raises:
+        None.
+    """
+    field_info = cls.__pydantic_fields__.get(field_name)
+    if field_info is None:
+        return None
+    factory = getattr(field_info, "default_factory", None)
+    if isinstance(factory, functools.partial) and factory.args:
+        return factory.args[0]
+    return None
+
+
+def _filter_file_data(cls: type, data: dict[str, Any]) -> dict[str, Any]:
+    """Drop file-derived keys whose env var is already set.
+
+    Preserves the documented precedence of env var (and CLI flag, already
+    funneled into ``os.environ`` by ``runtime/parser.py``) beating the
+    config file. Keys with no env-backed field are passed through
+    unchanged so unrecognized keys still reach the constructor and raise
+    as they do today.
+
+    Args:
+        cls: The Pydantic dataclass the data will be used to construct
+            (e.g. ServerConfig).
+        data: The file-derived kwargs dict for that class.
+
+    Returns:
+        A new dict with any key whose backing env var is present in
+        os.environ removed, allowing that field's default_factory to run
+        and read the environment instead.
+
+    Raises:
+        None.
+    """
+    result: dict[str, Any] = {}
+    for key, value in data.items():
+        env_key = _env_key_for_field(cls, key)
+        if env_key is not None and env_key in os.environ:
+            continue  # env var (or CLI flag already in os.environ) wins
+        result[key] = value
+    return result
+
+
 def _split_comma_separated(value: str | None) -> list[str]:
     """Convert comma-separated string to a list of trimmed values.
 
@@ -224,9 +286,19 @@ def load_config() -> Config:
     """Load configuration from all available sources.
 
     Configuration is loaded with the following precedence:
-    1. Environment variables (highest priority)
+    1. Environment variables, including CLI flags (highest priority --
+       runtime/parser.py funnels CLI flags into os.environ before this
+       function runs, so a real env var also beats a CLI flag)
     2. Configuration file (if ITENTIAL_MCP_CONFIG is set)
     3. Default values (lowest priority)
+
+    File-derived values are filtered via _filter_file_data() before being
+    passed to the ServerConfig/AuthConfig/PlatformConfig constructors so
+    that any field whose env var is already set in os.environ is omitted
+    from the constructor kwargs. This allows that field's env-backed
+    default_factory to run instead of the explicit kwarg silently taking
+    priority, which previously caused the config file to incorrectly win
+    over the environment.
 
     The configuration file path is determined by the ITENTIAL_MCP_CONFIG
     environment variable.
@@ -273,10 +345,12 @@ def load_config() -> Config:
         elif key.startswith("platform_"):
             platform_data[key.replace("platform_", "")] = value
 
-    # Create config objects (env vars take precedence automatically)
-    server_config = ServerConfig(**server_data)
-    auth_config = AuthConfig(**auth_data)
-    platform_config = PlatformConfig(**platform_data)
+    # Create config objects. Env-backed keys are filtered out of the
+    # file-derived kwargs so the corresponding default_factory fires and
+    # env vars (and CLI flags, already in os.environ) take precedence.
+    server_config = ServerConfig(**_filter_file_data(ServerConfig, server_data))
+    auth_config = AuthConfig(**_filter_file_data(AuthConfig, auth_data))
+    platform_config = PlatformConfig(**_filter_file_data(PlatformConfig, platform_data))
 
     return Config(
         server=server_config,
