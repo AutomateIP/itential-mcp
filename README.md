@@ -26,7 +26,7 @@ Build automation workflows, integrate with external systems, manage application 
 ### **Core Capabilities**
 - **56+ Automation Tools**: Comprehensive toolkit across 10 tag categories for all network automation needs
 - **Advanced Tool Selection**: Filter and control available tools using flexible tagging system
-- **Multiple Transport Methods**: stdio, SSE, and HTTP transports with optional TLS encryption
+- **Multiple Transport Methods**: stdio and HTTP (Streamable HTTP, recommended) transports with optional TLS encryption; legacy SSE transport is also available but deprecated
 - **Dynamic Tool Discovery**: Automatically discovers and registers tools without code modifications
 - **Flexible Authentication**: Supports basic auth, OAuth 2.0, JWT, and role-based access for Itential Platform
 - **Comprehensive Configuration**: CLI parameters, environment variables, or configuration files
@@ -100,8 +100,8 @@ For development, you can run the server directly using `uv`:
 # Run with stdio transport (default)
 uv run itential-mcp run
 
-# Run with SSE transport
-uv run itential-mcp run --transport sse --host 0.0.0.0 --port 8000
+# Run with HTTP transport (Streamable HTTP, recommended for web integration)
+uv run itential-mcp run --transport http --host 0.0.0.0 --port 8000
 
 # Run with specific configuration
 uv run itential-mcp run --include-tags "system,devices" --exclude-tags "experimental"
@@ -116,9 +116,9 @@ Pull and run the latest release:
 # Pull the latest image
 docker pull ghcr.io/itential/itential-mcp:latest
 
-# Run with SSE transport
+# Run with HTTP transport (Streamable HTTP, recommended)
 docker run -p 8000:8000 \
-  --env ITENTIAL_MCP_SERVER_TRANSPORT=sse \
+  --env ITENTIAL_MCP_SERVER_TRANSPORT=http \
   --env ITENTIAL_MCP_SERVER_HOST=0.0.0.0 \
   --env ITENTIAL_MCP_SERVER_PORT=8000 \
   --env ITENTIAL_MCP_PLATFORM_HOST=your-platform.example.com \
@@ -128,7 +128,7 @@ docker run -p 8000:8000 \
 
 # Or with OAuth authentication
 docker run -p 8000:8000 \
-  --env ITENTIAL_MCP_SERVER_TRANSPORT=sse \
+  --env ITENTIAL_MCP_SERVER_TRANSPORT=http \
   --env ITENTIAL_MCP_SERVER_HOST=0.0.0.0 \
   --env ITENTIAL_MCP_SERVER_PORT=8000 \
   --env ITENTIAL_MCP_PLATFORM_HOST=your-platform.example.com \
@@ -153,7 +153,7 @@ make container
 
 # Run the locally built container
 docker run -p 8000:8000 \
-  --env ITENTIAL_MCP_SERVER_TRANSPORT=sse \
+  --env ITENTIAL_MCP_SERVER_TRANSPORT=http \
   --env ITENTIAL_MCP_SERVER_HOST=0.0.0.0 \
   --env ITENTIAL_MCP_SERVER_PORT=8000 \
   --env ITENTIAL_MCP_PLATFORM_HOST=your-platform.example.com \
@@ -183,8 +183,8 @@ export ITENTIAL_MCP_PLATFORM_PASSWORD="your-password"
 # Basic stdio transport (default)
 itential-mcp run
 
-# Or with SSE transport for web clients
-itential-mcp run --transport sse --host 0.0.0.0 --port 8000
+# Or with HTTP transport (Streamable HTTP, recommended for web clients)
+itential-mcp run --transport http --host 0.0.0.0 --port 8000
 ```
 
 ### **4. Configure Your MCP Client**
@@ -197,7 +197,13 @@ Start the MCP server with default settings _(stdio transport)_:
 itential-mcp run
 ```
 
-Start with SSE transport:
+Start with HTTP transport (Streamable HTTP, recommended for web integration):
+
+```bash
+itential-mcp run --transport http --host 0.0.0.0 --port 8000
+```
+
+Start with SSE transport (deprecated - legacy HTTP+SSE, prefer http):
 
 ```bash
 itential-mcp run --transport sse --host 0.0.0.0 --port 8000
@@ -222,7 +228,7 @@ itential-mcp run --config config.conf
 
  | Option           | Description                                       | Default           |
  |------------------|---------------------------------------------------|-------------------|
- | `--transport`    | Transport protocol (stdio, sse, http)             | stdio             |
+ | `--transport`    | Transport protocol (stdio, sse, http; sse is deprecated, prefer http) | stdio             |
  | `--host`         | Host address to listen on                         | 127.0.0.1         |
  | `--port`         | Port to listen on                                 | 8000              |
  | `--path`         | The HTTP path to use                              | /mcp              |
@@ -249,7 +255,7 @@ itential-mcp run --config config.conf
 All command line options can also be set using environment variables prefixed with `ITENTIAL_MCP_SERVER_`. For example:
 
 ```bash
-export ITENTIAL_MCP_SERVER_TRANSPORT=sse
+export ITENTIAL_MCP_SERVER_TRANSPORT=http
 export ITENTIAL_MCP_PLATFORM_HOST=platform.example.com
 itential-mcp run  # Will use the environment variables
 ```

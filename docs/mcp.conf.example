@@ -14,13 +14,15 @@
 [server]
 
 # Configures the transport to use when starting the MCP server.  This
-# configuration option accepts one of three valid values: `sse`, `stdio`  
-# or `http`
+# configuration option accepts one of three valid values: `sse`, `stdio`
+# or `http`. `http` (Streamable HTTP) is recommended for web-based
+# deployments; `sse` is deprecated (legacy HTTP+SSE) and kept only for
+# backward compatibility.
 #
 # Default value: stdio
 # Environment variable: ITENTIAL_MCP_SERVER_TRANSPORT
 #
-# transport = sse
+# transport = http
 
 # Sets the IP address to listen for connections on.  This value must be a valid
 # IP address used by MCP clients to connect to this server.  This value is only
