@@ -775,6 +775,90 @@ class TestServerClass:
 
     @pytest.mark.asyncio
     @patch("itential_mcp.server.server.uvicorn.Server")
+    @patch("itential_mcp.server.server.Server.__aenter__")
+    @patch("itential_mcp.server.server.Server.__aexit__")
+    @patch("itential_mcp.server.server.logging.warning")
+    async def test_server_run_sse_transport_emits_deprecation_warning(
+        self, mock_warning, mock_aexit, mock_aenter, mock_uvicorn_server
+    ):
+        """Test Server.run() logs a deprecation warning for the sse transport"""
+        mock_config = MagicMock()
+        mock_config.server.transport = "sse"
+        mock_config.server.host = "0.0.0.0"
+        mock_config.server.port = 8080
+        mock_config.server.certificate_file = None
+        mock_config.server.private_key_file = None
+        mock_config.server.path = "/mcp"
+        mock_config.server.test_connection_on_startup = False
+
+        server_instance = server_module.Server(mock_config)
+
+        mock_mcp = MagicMock()
+        mock_mcp.http_app = MagicMock(return_value="test_app")
+        server_instance.mcp = mock_mcp
+
+        mock_uvicorn_instance = MagicMock()
+        mock_uvicorn_instance.serve = AsyncMock()
+        mock_uvicorn_server.return_value = mock_uvicorn_instance
+
+        with patch("itential_mcp.server.server.uvicorn.Config"):
+            await server_instance.run()
+
+        mock_warning.assert_called_once()
+
+    @pytest.mark.asyncio
+    @patch("itential_mcp.server.server.uvicorn.Server")
+    async def test_server_run_http_transport_does_not_emit_deprecation_warning(
+        self, mock_uvicorn_server
+    ):
+        """Test Server.run() does not log a deprecation warning for http transport"""
+        mock_config = MagicMock()
+        mock_config.server.transport = "http"
+        mock_config.server.host = "localhost"
+        mock_config.server.port = 3000
+        mock_config.server.certificate_file = None
+        mock_config.server.private_key_file = None
+        mock_config.server.path = "/mcp"
+        mock_config.server.test_connection_on_startup = False
+
+        server_instance = server_module.Server(mock_config)
+
+        mock_mcp = MagicMock()
+        mock_mcp.http_app = MagicMock(return_value="test_app")
+        server_instance.mcp = mock_mcp
+
+        mock_uvicorn_instance = MagicMock()
+        mock_uvicorn_instance.serve = AsyncMock()
+        mock_uvicorn_server.return_value = mock_uvicorn_instance
+
+        with (
+            patch("itential_mcp.server.server.uvicorn.Config"),
+            patch("itential_mcp.server.server.logging.warning") as mock_warning,
+        ):
+            await server_instance.run()
+
+        mock_warning.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_server_run_stdio_transport_does_not_emit_deprecation_warning(self):
+        """Test Server.run() does not log a deprecation warning for stdio transport"""
+        mock_config = MagicMock()
+        mock_config.server.transport = "stdio"
+        mock_config.server.test_connection_on_startup = False
+
+        server_instance = server_module.Server(mock_config)
+
+        mock_mcp = MagicMock()
+        mock_mcp.run_async = AsyncMock()
+        server_instance.mcp = mock_mcp
+
+        with patch("itential_mcp.server.server.logging.warning") as mock_warning:
+            await server_instance.run()
+
+        mock_warning.assert_not_called()
+
+    @pytest.mark.asyncio
+    @patch("itential_mcp.server.server.uvicorn.Server")
     async def test_server_run_http_transport_with_uvicorn(self, mock_uvicorn_server):
         """Test Server.run() method with HTTP transport uses uvicorn"""
         # Setup config for HTTP transport

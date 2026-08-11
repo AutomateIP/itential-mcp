@@ -312,6 +312,16 @@ class Server:
 
         # Continue with normal startup
         if self.config.server.transport in ("sse", "http"):
+            if self.config.server.transport == "sse":
+                logging.warning(
+                    "The 'sse' transport is deprecated and will be removed in a "
+                    "future release. The MCP specification deprecated the "
+                    "HTTP+SSE transport (protocol revision 2024-11-05); new "
+                    "deployments should use the Streamable HTTP transport "
+                    "instead. Migrate with --transport http (or "
+                    "ITENTIAL_MCP_SERVER_TRANSPORT=http)."
+                )
+
             app = self.mcp.http_app(path=self.config.server.path)
 
             uvicorn_config = uvicorn.Config(

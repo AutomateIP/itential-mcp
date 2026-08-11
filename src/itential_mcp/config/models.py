@@ -124,7 +124,9 @@ class ServerConfig:
 
     transport: Literal["stdio", "sse", "http"] = _create_field_with_env(
         "ITENTIAL_MCP_SERVER_TRANSPORT",
-        "The MCP server transport to use",
+        "The MCP server transport to use. 'http' (Streamable HTTP) is "
+        "recommended; 'sse' is deprecated (legacy HTTP+SSE) and kept only "
+        "for backward compatibility.",
         default=defaults.ITENTIAL_MCP_SERVER_TRANSPORT,
         json_schema_extra={
             "x-itential-mcp-cli-enabled": True,
