@@ -24,6 +24,7 @@ New to the MCP server? Start here:
 
 - **[Configuration Reference](mcp.conf.example)** - Complete configuration file with all options
 - **[Status Endpoints](status-endpoints.md)** - Health monitoring for production deployments
+- **[Deployment](deployment.md)** - Connecting to a highly-available platform and scaling the MCP server
 - **[JWT Authentication](jwt-authentication.md)** - JWT token authentication setup
 - **[OAuth Authentication](oauth-authentication.md)** - OAuth 2.0 with Google, Azure, Auth0, GitHub, Okta
 
