@@ -7,6 +7,60 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-08-13
+
+### Added
+- Agent token-usage analytics tools for `agent_session_manager`:
+  `get_agent_token_usage`, `get_agent_session_token_usage`, and
+  `describe_session_token_usage` (#396)
+- Gateway configuration export/import tools (`export_gateway_configuration`,
+  `import_gateway_configuration`) in `gateway_manager`, including an MCP
+  elicitation confirmation gate that prompts before exporting configuration
+  containing secrets/credentials (#397)
+- Python 3.14 added to the CI test matrix (3.10-3.14 all covered;
+  `requires-python` floor remains 3.10, unchanged) (#400)
+- MCP tool annotations (`readOnlyHint`/`destructiveHint`/`idempotentHint`/
+  `openWorldHint`), per-tool `title`, and deterministic tool
+  discovery/registration ordering across all ~77 tools, enforced going
+  forward by new CI completeness and safety-invariant guards in
+  `tests/utilities/test_tool.py` (#402)
+- One-time runtime deprecation warning on `--transport sse` startup, plus a
+  README/CLI-help/docs sweep steering new usage toward `http`; `sse` remains
+  fully functional and wire-compatible (#406)
+
+### Fixed
+- Restore documented config precedence (env vars/CLI flags now correctly
+  override config-file values) across all 39 affected
+  `ServerConfig`/`AuthConfig`/`PlatformConfig` fields (#403)
+- Parse documented `[server] auth_*` config-file keys without silently
+  dropping or mangling them, including correcting a global (non-prefix)
+  string replace that mangled `oauth_*` field names (#404)
+- Wrap `get_templates`'s return in the existing `GetTemplatesResponse`
+  `RootModel`, removing a spurious startup warning (type-hygiene only; wire
+  payload is unchanged) (#405)
+
+### Security
+- Bump pytest, idna, python-dotenv, and uv to patched versions (#398)
+- Lift the `cryptography` constraint to `>=50.0.0,<51`, resolving the 3
+  held high-severity advisories plus GHSA-537c-gmf6-5ccf that motivated the
+  earlier deliberate 46.x hold (#399)
+
+### Changed
+- Bump the Containerfile's base Python from 3.10 to 3.13 for both builder
+  and runtime stages, including the companion `.python-version` fix needed
+  for the bump to actually take effect (#401)
+- Fix stale `make premerge` references in `AGENTS.md` (renamed to `make ci`
+  in #325), and update `release.yaml`'s description to reflect the
+  tag-triggered auto-release flow (#395)
+
+### Docs
+- Add `docs/deployment.md` covering platform connectivity/deployment
+  guidance (#407)
+
+### Note
+- All previously open Dependabot advisories are now resolved: 0 open as of
+  this release (see the correction to the 0.13.3 entry below).
+
 ## [0.13.3] - 2026-08-05
 
 ### Security
@@ -58,6 +112,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   notes) is still deliberately held at the 46.x line pending evaluation of
   47.x/48.x breaking API changes; not yet re-assessed against the new
   high-severity findings.
+  - **Correction (2026-08-13):** this note is stale as of the 0.14.0
+    release. The `cryptography` pin was lifted to `>=50.0.0,<51` in #399,
+    clearing the 3 high-severity advisories referenced above plus
+    GHSA-537c-gmf6-5ccf. A full re-triage on 2026-08-07 confirmed 0 open
+    Dependabot advisories remained at that point. See the 0.14.0 entry
+    above.
+
 ## [0.13.2] - 2026-08-03
 
 ### Security
