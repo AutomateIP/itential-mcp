@@ -1520,6 +1520,49 @@ class TestConfigurationManagerComplianceReports:
         assert result == expected_data
         assert result["devices"] == []
 
+    @pytest.mark.asyncio
+    async def test_get_compliance_reports_by_batch_success(self, service, mock_client):
+        """Test successful retrieval of compliance reports by batch id."""
+        expected_data = [
+            {
+                "id": "67ead32d5f12757d048a48d1",
+                "batchId": "67ead32d5f12757d048a48df",
+                "treeId": "67ead32d5f12757d048a48d2",
+                "version": "initial",
+                "nodePath": "base/US East/Atlanta",
+                "deviceName": "router1",
+                "timestamp": "2026-08-18T00:00:00Z",
+                "totals": {"errors": 1, "warnings": 2, "infos": 3, "passes": 10},
+            },
+        ]
+
+        mock_response = Mock()
+        mock_response.json.return_value = expected_data
+        mock_client.get.return_value = mock_response
+
+        result = await service.get_compliance_reports_by_batch(
+            "67ead32d5f12757d048a48df"
+        )
+
+        mock_client.get.assert_called_once_with(
+            "/configuration_manager/compliance_reports/batch/67ead32d5f12757d048a48df"
+        )
+        assert result == expected_data
+
+    @pytest.mark.asyncio
+    async def test_get_compliance_reports_by_batch_empty(self, service, mock_client):
+        """Test retrieving compliance reports by batch id with an empty result."""
+        mock_response = Mock()
+        mock_response.json.return_value = []
+        mock_client.get.return_value = mock_response
+
+        result = await service.get_compliance_reports_by_batch("empty-batch-id")
+
+        mock_client.get.assert_called_once_with(
+            "/configuration_manager/compliance_reports/batch/empty-batch-id"
+        )
+        assert result == []
+
 
 class TestConfigurationManagerDevices:
     """Test cases for Configuration Manager Device methods."""

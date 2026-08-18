@@ -106,6 +106,7 @@ class TestCompliancePlanInstance:
             "name": "Running Security Check",
             "description": "Currently executing security compliance",
             "jobStatus": "running",
+            "batchId": "67ead32d5f12757d048a48df",
         }
 
         instance = CompliancePlanInstance(**instance_data)
@@ -114,6 +115,7 @@ class TestCompliancePlanInstance:
         assert instance.name == "Running Security Check"
         assert instance.description == "Currently executing security compliance"
         assert instance.jobStatus == "running"
+        assert instance.batchId == "67ead32d5f12757d048a48df"
 
     def test_compliance_plan_instance_missing_required_fields(self):
         """Test that CompliancePlanInstance raises ValidationError for missing required fields."""
@@ -128,6 +130,19 @@ class TestCompliancePlanInstance:
 
         assert required_fields.issubset(missing_fields)
 
+    def test_compliance_plan_instance_batch_id_defaults_to_none(self):
+        """Test that batchId defaults to None when omitted (optional field)."""
+        instance_data = {
+            "id": "instance-456",
+            "name": "Running Security Check",
+            "description": "Currently executing security compliance",
+            "jobStatus": "running",
+        }
+
+        instance = CompliancePlanInstance(**instance_data)
+
+        assert instance.batchId is None
+
 
 class TestRunCompliancePlanResponse:
     """Test cases for RunCompliancePlanResponse model."""
@@ -139,6 +154,7 @@ class TestRunCompliancePlanResponse:
             name="Test Instance",
             description="Test instance description",
             jobStatus="completed",
+            batchId="67ead32d5f12757d048a48df",
         )
 
         response = RunCompliancePlanResponse(instance=instance)
@@ -146,6 +162,7 @@ class TestRunCompliancePlanResponse:
         assert response.instance.id == "instance-789"
         assert response.instance.name == "Test Instance"
         assert response.instance.jobStatus == "completed"
+        assert response.instance.batchId == "67ead32d5f12757d048a48df"
 
     def test_run_response_missing_instance_field(self):
         """Test that RunCompliancePlanResponse raises ValidationError for missing instance field."""

@@ -529,6 +529,32 @@ class Service(ServiceBase):
         )
         return res.json()
 
+    async def get_compliance_reports_by_batch(self, batch_id: str) -> list[dict]:
+        """
+        Retrieve compliance reports produced by a specific compliance plan batch run.
+
+        Compliance reports are generated per-device when a compliance plan is
+        executed. All reports produced by a single plan run share the same
+        batch identifier, which is returned as `batchId` on the compliance
+        plan instance created by running the plan.
+
+        Args:
+            batch_id (str): Unique identifier of the compliance plan run batch
+                to retrieve reports for
+
+        Returns:
+            list[dict]: List of compliance report brief objects containing
+                summary results for each device checked in the batch,
+                including per-device error/warning/info/pass totals
+
+        Raises:
+            ServerException: If there is an error communicating with the server
+        """
+        res = await self.client.get(
+            f"/configuration_manager/compliance_reports/batch/{batch_id}"
+        )
+        return res.json()
+
     async def get_devices(self) -> list[dict]:
         """
         Get all devices known to Itential Platform.

@@ -121,6 +121,7 @@ class TestRunCompliancePlanTool:
             "name": "Security Baseline",
             "description": "Checks security config",
             "jobStatus": "running",
+            "batchId": "67ead32d5f12757d048a48df",
         }
 
         result = await run_compliance_plan(self.mock_context, name="Security Baseline")
@@ -131,6 +132,7 @@ class TestRunCompliancePlanTool:
         assert isinstance(result, RunCompliancePlanResponse)
         assert result.instance.id == "instance-123"
         assert result.instance.jobStatus == "running"
+        assert result.instance.batchId == "67ead32d5f12757d048a48df"
 
     @pytest.mark.asyncio
     async def test_run_compliance_plan_passes_name(self):
@@ -146,3 +148,30 @@ class TestRunCompliancePlanTool:
 
         call_kwargs = self.mock_cm_service.run_compliance_plan.call_args
         assert call_kwargs.kwargs.get("name") == "QoS Compliance"
+
+    @pytest.mark.asyncio
+    async def test_run_compliance_plan_surfaces_batch_id(self):
+        """run_compliance_plan must surface batchId from the raw service payload.
+
+        This is the anti-drop regression test: it returns a full raw instance
+        dict (all real fields the platform sends, including extras the tool
+        does not model) and asserts batchId survives into the response while
+        unmodeled extra keys are silently ignored.
+        """
+        self.mock_cm_service.run_compliance_plan.return_value = {
+            "id": "instance-999",
+            "planId": "plan-999",
+            "jobId": "job-999",
+            "name": "Full Payload Plan",
+            "description": "Exercises the full raw instance payload",
+            "jobStatus": "running",
+            "started": "2026-08-18T00:00:00Z",
+            "throttle": 5,
+            "nodes": ["node1", "node2"],
+            "batchId": "67ead32d5f12757d048a48df",
+        }
+
+        result = await run_compliance_plan(self.mock_context, name="Full Payload Plan")
+
+        assert isinstance(result, RunCompliancePlanResponse)
+        assert result.instance.batchId == "67ead32d5f12757d048a48df"

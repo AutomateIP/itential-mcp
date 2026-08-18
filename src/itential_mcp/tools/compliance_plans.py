@@ -83,5 +83,6 @@ async def run_compliance_plan(
         name=data["name"],
         description=data["description"],
         jobStatus=data["jobStatus"],
+        batchId=data.get("batchId"),
     )
     return models.RunCompliancePlanResponse(instance=compliance_instance)

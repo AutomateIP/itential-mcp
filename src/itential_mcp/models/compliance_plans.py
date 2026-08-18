@@ -105,6 +105,10 @@ class CompliancePlanInstance(BaseModel):
         name: Name of the compliance plan that was started.
         description: Compliance plan description.
         jobStatus: Current execution status of the compliance plan instance.
+        batchId: Batch identifier used to retrieve the compliance reports
+            produced by this plan run (pass to
+            get_compliance_reports_by_batch). May be absent for some plan
+            runs, in which case it is None.
     """
 
     id: Annotated[
@@ -150,6 +154,20 @@ class CompliancePlanInstance(BaseModel):
             )
         ),
     ]
+
+    batchId: Annotated[
+        str | None,
+        Field(
+            default=None,
+            description=inspect.cleandoc(
+                """
+                Batch identifier used to retrieve the compliance reports
+                produced by this plan run (pass to
+                get_compliance_reports_by_batch)
+                """
+            ),
+        ),
+    ] = None
 
 
 class RunCompliancePlanResponse(BaseModel):
