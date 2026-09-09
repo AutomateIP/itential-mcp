@@ -259,6 +259,7 @@ class TestGetSessionMessages:
 
         assert result == messages
         assert len(result) == 2
+        assert mock_client.get.call_count == 1
 
     @pytest.mark.asyncio
     async def test_get_session_messages_dict_response(self, service, mock_client):
@@ -271,6 +272,7 @@ class TestGetSessionMessages:
         result = await service.get_session_messages("sess-001")
 
         assert result == messages
+        assert mock_client.get.call_count == 1
 
     @pytest.mark.asyncio
     async def test_get_session_messages_empty_dict_response(self, service, mock_client):
@@ -282,6 +284,7 @@ class TestGetSessionMessages:
         result = await service.get_session_messages("sess-001")
 
         assert result == []
+        assert mock_client.get.call_count == 1
 
     @pytest.mark.asyncio
     async def test_get_session_messages_uses_correct_endpoint(
@@ -295,5 +298,53 @@ class TestGetSessionMessages:
         await service.get_session_messages("sess-xyz")
 
         mock_client.get.assert_called_once_with(
-            "/agent-session-manager/sessions/sess-xyz/messages"
+            "/agent-session-manager/sessions/sess-xyz/messages",
+            params={"limit": 100, "offset": 0},
         )
+
+    @pytest.mark.asyncio
+    async def test_get_session_messages_paginates_multiple_pages(
+        self, service, mock_client
+    ):
+        """Test get_session_messages pages through multiple result pages"""
+        first_page = [{"type": "tool-call", "text": f"event-{i}"} for i in range(100)]
+        second_page = [
+            {"type": "end_turn", "text": f"event-{i}"} for i in range(100, 103)
+        ]
+
+        first_response = MagicMock()
+        first_response.json.return_value = first_page
+        second_response = MagicMock()
+        second_response.json.return_value = second_page
+        mock_client.get.side_effect = [first_response, second_response]
+
+        result = await service.get_session_messages("sess-001")
+
+        assert result == first_page + second_page
+        assert len(result) == 103
+        assert mock_client.get.call_count == 2
+
+        second_call = mock_client.get.call_args_list[1]
+        assert second_call.kwargs["params"]["offset"] == 100
+
+    @pytest.mark.asyncio
+    async def test_get_session_messages_exact_multiple_page_boundary(
+        self, service, mock_client
+    ):
+        """Test get_session_messages fetches an extra page when the prior
+        page is exactly the page size, terminating on the following empty
+        page."""
+        full_page = [{"type": "tool-call", "text": f"event-{i}"} for i in range(100)]
+        empty_page: list[dict] = []
+
+        first_response = MagicMock()
+        first_response.json.return_value = full_page
+        second_response = MagicMock()
+        second_response.json.return_value = empty_page
+        mock_client.get.side_effect = [first_response, second_response]
+
+        result = await service.get_session_messages("sess-001")
+
+        assert result == full_page
+        assert len(result) == 100
+        assert mock_client.get.call_count == 2

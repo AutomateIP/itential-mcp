@@ -159,6 +159,30 @@ def _extract_token_usage(raw: dict) -> models.SessionTurnTokenUsage | None:
     )
 
 
+def _is_end_turn_reasoning_event(raw: dict) -> bool:
+    """
+    Check whether a raw session event is a kept AGENT_REASONING event.
+
+    Only events categorized as AGENT_REASONING with a nested
+    data.stopReason of "end_turn" represent a completed model turn worth
+    surfacing. This excludes tool-execution events, pending-inference
+    events (no category match), tool_use-stopReason reasoning steps
+    (mid-turn, not yet final), reasoning events with no data at all, and
+    session-status events.
+
+    Args:
+        raw (dict): A single raw event dict from get_session_messages.
+
+    Returns:
+        bool: True if the event should be kept, False otherwise.
+    """
+    if raw.get("category") != "AGENT_REASONING":
+        return False
+
+    data = raw.get("data") or {}
+    return data.get("stopReason") == "end_turn"
+
+
 def _parse_timestamp(value: str) -> datetime:
     """
     Parse an ISO 8601 / RFC3339 timestamp string into a timezone-aware datetime.
@@ -261,8 +285,13 @@ async def describe_session(
     """
     Get detailed information about a specific agent session.
 
-    Returns the full session record including all event messages emitted
-    during agent execution and the final text output produced by the agent.
+    Returns the full session record including the filtered reasoning event
+    log and the final text output produced by the agent. The raw event log
+    is filtered down to only AGENT_REASONING events whose data.stopReason is
+    "end_turn" — these represent completed model turns. Tool-execution
+    events, pending-inference events, tool_use-stopReason reasoning steps
+    (mid-turn, not yet final), reasoning events with no data at all, and
+    session-status events are all dropped.
 
     Args:
         ctx (Context): The FastMCP Context object.
@@ -278,11 +307,14 @@ async def describe_session(
             - started_at: ISO 8601 start timestamp
             - end_time: ISO 8601 end timestamp (None if still running)
             - duration_ms: Total session duration in milliseconds
-            - messages: Ordered list of session event messages
+            - reasoning_events: Ordered list of kept AGENT_REASONING events
 
     Notes:
-        - The output field is extracted from the inference-succeeded event message
-        - Message timestamps are converted from epoch milliseconds to ISO 8601 format
+        - Only AGENT_REASONING events with data.stopReason == "end_turn" are
+          kept; everything else is filtered out of reasoning_events
+        - The output field is taken from the last kept reasoning event's text
+        - Reasoning event timestamps are converted from epoch milliseconds to
+          ISO 8601 format
     """
     await ctx.debug("inside describe_session(...)")
 
@@ -304,24 +336,28 @@ async def describe_session(
     if isinstance(end_time, int):
         end_time = timeutils.epoch_to_timestamp(end_time)
 
-    messages = []
+    reasoning_events = []
     output = None
 
     for raw in raw_messages:
-        msg_timestamp = raw.get("timestamp")
-        if isinstance(msg_timestamp, int):
-            msg_timestamp = timeutils.epoch_to_timestamp(msg_timestamp)
+        if not _is_end_turn_reasoning_event(raw):
+            continue
 
-        msg = models.SessionMessage(
-            type=raw.get("type", ""),
-            category=raw.get("category"),
-            text=raw.get("text"),
-            timestamp=msg_timestamp,
+        event_timestamp = raw.get("timestamp")
+        if isinstance(event_timestamp, int):
+            event_timestamp = timeutils.epoch_to_timestamp(event_timestamp)
+
+        event_text = raw.get("text")
+
+        reasoning_event = models.SessionReasoningEvent(
+            event_id=raw.get("eventId"),
+            sequence_number=raw.get("sequenceNumber"),
+            timestamp=event_timestamp,
+            text=event_text,
         )
-        messages.append(msg)
+        reasoning_events.append(reasoning_event)
 
-        if raw.get("type") == "inference-succeeded" and raw.get("text") is not None:
-            output = raw["text"]
+        output = event_text
 
     return models.DescribeSessionResponse(
         session_id=session.get("sessionId", session_id),
@@ -331,7 +367,7 @@ async def describe_session(
         started_at=started_at,
         end_time=end_time,
         duration_ms=session.get("durationMs"),
-        messages=messages,
+        reasoning_events=reasoning_events,
     )
 
 

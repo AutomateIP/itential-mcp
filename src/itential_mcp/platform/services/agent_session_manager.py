@@ -113,7 +113,10 @@ class Service(ServiceBase):
         """Retrieve the event messages for a specific agent session.
 
         Fetches the ordered list of event messages emitted during agent
-        execution. Handles both list responses and dict responses that wrap
+        execution. The endpoint paginates server-side with a default page
+        size, so this method pages through the results internally using
+        explicit limit/offset params until the complete event log has been
+        retrieved. Handles both list responses and dict responses that wrap
         the data under a "data" key.
 
         Args:
@@ -126,12 +129,31 @@ class Service(ServiceBase):
             Exception: If there is an error communicating with the Itential
                 Platform API or if the session is not found.
         """
-        res = await self.client.get(
-            f"/agent-session-manager/sessions/{session_id}/messages"
-        )
-        data = res.json()
+        # TODO: consider making the page size configurable via config instead
+        # of hardcoded, if larger session event logs become common.
+        limit = 100
+        offset = 0
+        results = []
 
-        if isinstance(data, list):
-            return data
+        while True:
+            params: dict = {"limit": limit, "offset": offset}
 
-        return data.get("data", [])
+            res = await self.client.get(
+                f"/agent-session-manager/sessions/{session_id}/messages",
+                params=params,
+            )
+            data = res.json()
+
+            if isinstance(data, list):
+                items = data
+            else:
+                items = data.get("data", [])
+
+            results.extend(items)
+
+            if len(items) < limit:
+                break
+
+            offset += limit
+
+        return results
