@@ -7,6 +7,7 @@ from pydantic import ValidationError
 
 from itential_mcp.models.agent_session_manager import (
     SessionMessage,
+    SessionReasoningEvent,
     SessionElement,
     GetSessionsResponse,
     DescribeSessionResponse,
@@ -75,6 +76,48 @@ class TestSessionMessage:
         assert msg.category is None
         assert msg.text is None
         assert msg.timestamp is None
+
+
+class TestSessionReasoningEvent:
+    """Test the SessionReasoningEvent model"""
+
+    def test_session_reasoning_event_all_fields(self):
+        """Test SessionReasoningEvent creation with all fields populated"""
+        event = SessionReasoningEvent(
+            event_id="evt-001",
+            sequence_number=1,
+            timestamp="2025-06-01T12:00:00Z",
+            text="Device configured.",
+        )
+
+        assert event.event_id == "evt-001"
+        assert event.sequence_number == 1
+        assert event.timestamp == "2025-06-01T12:00:00Z"
+        assert event.text == "Device configured."
+
+    def test_session_reasoning_event_no_required_fields(self):
+        """Test SessionReasoningEvent can be constructed with no arguments,
+        all fields defaulting to None"""
+        event = SessionReasoningEvent()
+
+        assert event.event_id is None
+        assert event.sequence_number is None
+        assert event.timestamp is None
+        assert event.text is None
+
+    def test_session_reasoning_event_optional_fields_explicit_none(self):
+        """Test SessionReasoningEvent accepts explicit None for all fields"""
+        event = SessionReasoningEvent(
+            event_id=None,
+            sequence_number=None,
+            timestamp=None,
+            text=None,
+        )
+
+        assert event.event_id is None
+        assert event.sequence_number is None
+        assert event.timestamp is None
+        assert event.text is None
 
 
 class TestSessionElement:
@@ -213,7 +256,12 @@ class TestDescribeSessionResponse:
 
     def test_describe_session_response_full_fields(self):
         """Test DescribeSessionResponse with all fields populated"""
-        msg = SessionMessage(type="inference-succeeded", text="Done.")
+        event = SessionReasoningEvent(
+            event_id="evt-001",
+            sequence_number=1,
+            timestamp="2025-06-01T10:00:30Z",
+            text="Done.",
+        )
 
         response = DescribeSessionResponse(
             session_id="sess-001",
@@ -223,7 +271,7 @@ class TestDescribeSessionResponse:
             started_at="2025-06-01T10:00:00Z",
             end_time="2025-06-01T10:01:00Z",
             duration_ms=60000,
-            messages=[msg],
+            reasoning_events=[event],
         )
 
         assert response.session_id == "sess-001"
@@ -233,8 +281,8 @@ class TestDescribeSessionResponse:
         assert response.started_at == "2025-06-01T10:00:00Z"
         assert response.end_time == "2025-06-01T10:01:00Z"
         assert response.duration_ms == 60000
-        assert len(response.messages) == 1
-        assert response.messages[0].event_type == "inference-succeeded"
+        assert len(response.reasoning_events) == 1
+        assert response.reasoning_events[0].event_id == "evt-001"
 
     def test_describe_session_response_output_none_when_running(self):
         """Test DescribeSessionResponse output is None for running sessions"""
@@ -246,24 +294,24 @@ class TestDescribeSessionResponse:
 
         assert response.output is None
         assert response.agent_name is None
-        assert response.messages == []
+        assert response.reasoning_events == []
 
-    def test_describe_session_response_no_inference_succeeded(self):
-        """Test DescribeSessionResponse with messages but no inference-succeeded"""
-        msgs = [
-            SessionMessage(type="tool-call", text="calling list_devices"),
-            SessionMessage(type="tool-result", text="[router1, router2]"),
+    def test_describe_session_response_multiple_reasoning_events(self):
+        """Test DescribeSessionResponse with multiple kept reasoning events"""
+        events = [
+            SessionReasoningEvent(event_id="evt-001", text="first turn"),
+            SessionReasoningEvent(event_id="evt-002", text="second turn"),
         ]
 
         response = DescribeSessionResponse(
             session_id="sess-003",
             status="FAILED",
             output=None,
-            messages=msgs,
+            reasoning_events=events,
         )
 
         assert response.output is None
-        assert len(response.messages) == 2
+        assert len(response.reasoning_events) == 2
 
     def test_describe_session_response_missing_required_raises(self):
         """Test DescribeSessionResponse validation fails when required fields are absent"""
@@ -275,11 +323,11 @@ class TestDescribeSessionResponse:
         assert "session_id" in error_locs
         assert "status" in error_locs
 
-    def test_describe_session_response_default_messages_empty(self):
-        """Test DescribeSessionResponse messages defaults to empty list"""
+    def test_describe_session_response_default_reasoning_events_empty(self):
+        """Test DescribeSessionResponse reasoning_events defaults to empty list"""
         response = DescribeSessionResponse(session_id="sess-004", status="COMPLETE")
 
-        assert response.messages == []
+        assert response.reasoning_events == []
 
     def test_describe_session_response_optional_fields_default_none(self):
         """Test DescribeSessionResponse optional fields default to None"""

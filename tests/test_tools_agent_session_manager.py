@@ -258,8 +258,9 @@ class TestDescribeSessionTool:
     """Test the describe_session tool function"""
 
     @pytest.mark.asyncio
-    async def test_describe_session_complete_with_output(self):
-        """Test describe_session returns full detail including agent output"""
+    async def test_describe_session_keeps_end_turn_reasoning_event(self):
+        """Test describe_session keeps an AGENT_REASONING event with
+        data.stopReason == 'end_turn' and maps its fields correctly"""
         mock_service = AsyncMock()
         mock_service.get_session.return_value = {
             "sessionId": "sess-001",
@@ -271,33 +272,40 @@ class TestDescribeSessionTool:
         }
         mock_service.get_session_messages.return_value = [
             {
-                "type": "tool-call",
-                "text": "calling get_device",
-                "category": None,
-                "timestamp": None,
-            },
-            {
-                "type": "inference-succeeded",
+                "eventId": "evt-001",
+                "sequenceNumber": 1,
+                "timestamp": 1748779200000,
                 "text": "Device configured.",
-                "category": "output",
-                "timestamp": None,
+                "category": "AGENT_REASONING",
+                "data": {"stopReason": "end_turn"},
             },
         ]
         ctx = _make_context(mock_service)
 
-        result = await agent_session_manager.describe_session(ctx, "sess-001")
+        with patch(
+            "itential_mcp.tools.agent_session_manager.timeutils.epoch_to_timestamp"
+        ) as mock_ts:
+            mock_ts.return_value = "2025-06-01T10:00:00Z"
+            result = await agent_session_manager.describe_session(ctx, "sess-001")
 
         assert isinstance(result, DescribeSessionResponse)
         assert result.session_id == "sess-001"
         assert result.agent_name == "network-agent"
         assert result.status == "COMPLETE"
-        assert result.output == "Device configured."
         assert result.duration_ms == 60000
-        assert len(result.messages) == 2
+        assert len(result.reasoning_events) == 1
+
+        event = result.reasoning_events[0]
+        assert event.event_id == "evt-001"
+        assert event.sequence_number == 1
+        assert event.timestamp == "2025-06-01T10:00:00Z"
+        assert event.text == "Device configured."
+        mock_ts.assert_called_with(1748779200000)
 
     @pytest.mark.asyncio
-    async def test_describe_session_running_no_output(self):
-        """Test describe_session for a running session returns output=None"""
+    async def test_describe_session_drops_tool_use_stop_reason(self):
+        """Test describe_session drops an AGENT_REASONING event whose
+        data.stopReason is 'tool_use' (mid-turn, not yet final)"""
         mock_service = AsyncMock()
         mock_service.get_session.return_value = {
             "sessionId": "sess-002",
@@ -306,10 +314,12 @@ class TestDescribeSessionTool:
         }
         mock_service.get_session_messages.return_value = [
             {
-                "type": "tool-call",
-                "text": "looking up data",
-                "category": None,
+                "eventId": "evt-010",
+                "sequenceNumber": 1,
                 "timestamp": None,
+                "text": "thinking about which tool to call",
+                "category": "AGENT_REASONING",
+                "data": {"stopReason": "tool_use"},
             },
         ]
         ctx = _make_context(mock_service)
@@ -318,22 +328,25 @@ class TestDescribeSessionTool:
 
         assert result.status == "RUNNING"
         assert result.output is None
-        assert len(result.messages) == 1
+        assert len(result.reasoning_events) == 0
 
     @pytest.mark.asyncio
-    async def test_describe_session_no_inference_succeeded_event(self):
-        """Test describe_session output is None when no inference-succeeded message"""
+    async def test_describe_session_drops_empty_data_reasoning_event(self):
+        """Test describe_session drops an AGENT_REASONING event with no
+        data (no stopReason present at all)"""
         mock_service = AsyncMock()
         mock_service.get_session.return_value = {
             "sessionId": "sess-003",
-            "status": "FAILED",
+            "status": "RUNNING",
         }
         mock_service.get_session_messages.return_value = [
             {
-                "type": "agent-error",
-                "text": "something broke",
-                "category": None,
+                "eventId": "evt-020",
+                "sequenceNumber": 1,
                 "timestamp": None,
+                "text": "partial reasoning",
+                "category": "AGENT_REASONING",
+                "data": {},
             },
         ]
         ctx = _make_context(mock_service)
@@ -341,12 +354,12 @@ class TestDescribeSessionTool:
         result = await agent_session_manager.describe_session(ctx, "sess-003")
 
         assert result.output is None
-        assert result.status == "FAILED"
-        assert len(result.messages) == 1
+        assert len(result.reasoning_events) == 0
 
     @pytest.mark.asyncio
-    async def test_describe_session_inference_succeeded_null_text_not_output(self):
-        """Test describe_session ignores inference-succeeded with None text for output"""
+    async def test_describe_session_drops_tool_execution_event(self):
+        """Test describe_session drops a tool-execution event (category
+        does not match AGENT_REASONING)"""
         mock_service = AsyncMock()
         mock_service.get_session.return_value = {
             "sessionId": "sess-004",
@@ -354,10 +367,12 @@ class TestDescribeSessionTool:
         }
         mock_service.get_session_messages.return_value = [
             {
-                "type": "inference-succeeded",
-                "text": None,
-                "category": None,
+                "eventId": "evt-030",
+                "sequenceNumber": 1,
                 "timestamp": None,
+                "text": "calling get_device",
+                "category": "TOOL_EXECUTION",
+                "data": {"stopReason": "end_turn"},
             },
         ]
         ctx = _make_context(mock_service)
@@ -365,13 +380,108 @@ class TestDescribeSessionTool:
         result = await agent_session_manager.describe_session(ctx, "sess-004")
 
         assert result.output is None
+        assert len(result.reasoning_events) == 0
+
+    @pytest.mark.asyncio
+    async def test_describe_session_drops_session_status_event(self):
+        """Test describe_session drops a session-status event (category
+        does not match AGENT_REASONING)"""
+        mock_service = AsyncMock()
+        mock_service.get_session.return_value = {
+            "sessionId": "sess-005",
+            "status": "FAILED",
+        }
+        mock_service.get_session_messages.return_value = [
+            {
+                "eventId": "evt-040",
+                "sequenceNumber": 1,
+                "timestamp": None,
+                "text": "session failed",
+                "category": "SESSION_STATUS",
+                "data": None,
+            },
+        ]
+        ctx = _make_context(mock_service)
+
+        result = await agent_session_manager.describe_session(ctx, "sess-005")
+
+        assert result.output is None
+        assert result.status == "FAILED"
+        assert len(result.reasoning_events) == 0
+
+    @pytest.mark.asyncio
+    async def test_describe_session_output_is_last_kept_event_text(self):
+        """Test describe_session's output equals the last kept reasoning
+        event's text, not the first"""
+        mock_service = AsyncMock()
+        mock_service.get_session.return_value = {
+            "sessionId": "sess-006",
+            "status": "COMPLETE",
+        }
+        mock_service.get_session_messages.return_value = [
+            {
+                "eventId": "evt-050",
+                "sequenceNumber": 1,
+                "timestamp": None,
+                "text": "first turn output",
+                "category": "AGENT_REASONING",
+                "data": {"stopReason": "end_turn"},
+            },
+            {
+                "eventId": "evt-051",
+                "sequenceNumber": 2,
+                "timestamp": None,
+                "text": "calling a tool",
+                "category": "TOOL_EXECUTION",
+                "data": {"stopReason": "end_turn"},
+            },
+            {
+                "eventId": "evt-052",
+                "sequenceNumber": 3,
+                "timestamp": None,
+                "text": "final turn output",
+                "category": "AGENT_REASONING",
+                "data": {"stopReason": "end_turn"},
+            },
+        ]
+        ctx = _make_context(mock_service)
+
+        result = await agent_session_manager.describe_session(ctx, "sess-006")
+
+        assert len(result.reasoning_events) == 2
+        assert result.output == "final turn output"
+
+    @pytest.mark.asyncio
+    async def test_describe_session_no_kept_events_output_none(self):
+        """Test describe_session's output is None when nothing is kept"""
+        mock_service = AsyncMock()
+        mock_service.get_session.return_value = {
+            "sessionId": "sess-007",
+            "status": "FAILED",
+        }
+        mock_service.get_session_messages.return_value = [
+            {
+                "eventId": "evt-060",
+                "sequenceNumber": 1,
+                "timestamp": None,
+                "text": "something broke",
+                "category": "SESSION_STATUS",
+                "data": None,
+            },
+        ]
+        ctx = _make_context(mock_service)
+
+        result = await agent_session_manager.describe_session(ctx, "sess-007")
+
+        assert result.output is None
+        assert result.reasoning_events == []
 
     @pytest.mark.asyncio
     async def test_describe_session_epoch_timestamps_on_session_converted(self):
         """Test describe_session converts epoch timestamps on the session record"""
         mock_service = AsyncMock()
         mock_service.get_session.return_value = {
-            "sessionId": "sess-005",
+            "sessionId": "sess-008",
             "status": "COMPLETE",
             "startedAt": 1748779200000,
             "endTime": 1748779260000,
@@ -383,49 +493,23 @@ class TestDescribeSessionTool:
             "itential_mcp.tools.agent_session_manager.timeutils.epoch_to_timestamp"
         ) as mock_ts:
             mock_ts.side_effect = lambda ms: f"ts({ms})"
-            result = await agent_session_manager.describe_session(ctx, "sess-005")
+            result = await agent_session_manager.describe_session(ctx, "sess-008")
 
         assert result.started_at == "ts(1748779200000)"
         assert result.end_time == "ts(1748779260000)"
-
-    @pytest.mark.asyncio
-    async def test_describe_session_epoch_timestamps_on_messages_converted(self):
-        """Test describe_session converts epoch timestamps on message records"""
-        mock_service = AsyncMock()
-        mock_service.get_session.return_value = {
-            "sessionId": "sess-006",
-            "status": "COMPLETE",
-        }
-        mock_service.get_session_messages.return_value = [
-            {
-                "type": "tool-call",
-                "text": "hi",
-                "category": None,
-                "timestamp": 1748779200000,
-            },
-        ]
-        ctx = _make_context(mock_service)
-
-        with patch(
-            "itential_mcp.tools.agent_session_manager.timeutils.epoch_to_timestamp"
-        ) as mock_ts:
-            mock_ts.return_value = "2025-06-01T12:00:00Z"
-            result = await agent_session_manager.describe_session(ctx, "sess-006")
-
-        assert result.messages[0].timestamp == "2025-06-01T12:00:00Z"
 
     @pytest.mark.asyncio
     async def test_describe_session_no_agent_snapshot(self):
         """Test describe_session handles missing agentSnapshot gracefully"""
         mock_service = AsyncMock()
         mock_service.get_session.return_value = {
-            "sessionId": "sess-007",
+            "sessionId": "sess-009",
             "status": "COMPLETE",
         }
         mock_service.get_session_messages.return_value = []
         ctx = _make_context(mock_service)
 
-        result = await agent_session_manager.describe_session(ctx, "sess-007")
+        result = await agent_session_manager.describe_session(ctx, "sess-009")
 
         assert result.agent_name is None
 

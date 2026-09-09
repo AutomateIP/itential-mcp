@@ -79,6 +79,73 @@ class SessionMessage(BaseModel):
     model_config = {"populate_by_name": True}
 
 
+class SessionReasoningEvent(BaseModel):
+    """
+    Represents a single kept AGENT_REASONING event from an agent session.
+
+    describe_session filters the raw session event log down to only the
+    AGENT_REASONING events whose data.stopReason is "end_turn" — these are
+    the reasoning steps that represent a completed model turn, as opposed to
+    tool-execution events, pending-inference events, tool_use-stopReason
+    reasoning steps (mid-turn, not yet final), or reasoning events with no
+    data at all. Each kept event carries its own text payload.
+
+    Attributes:
+        event_id: Unique identifier for this event.
+        sequence_number: Ordering number for this event within the session.
+        timestamp: ISO 8601 timestamp when this event was emitted.
+        text: Text content of this reasoning event.
+    """
+
+    event_id: Annotated[
+        str | None,
+        Field(
+            description=inspect.cleandoc(
+                """
+                Unique identifier for this event
+                """
+            ),
+            default=None,
+        ),
+    ]
+
+    sequence_number: Annotated[
+        int | None,
+        Field(
+            description=inspect.cleandoc(
+                """
+                Ordering number for this event within the session
+                """
+            ),
+            default=None,
+        ),
+    ]
+
+    timestamp: Annotated[
+        str | None,
+        Field(
+            description=inspect.cleandoc(
+                """
+                ISO 8601 timestamp when this event was emitted
+                """
+            ),
+            default=None,
+        ),
+    ]
+
+    text: Annotated[
+        str | None,
+        Field(
+            description=inspect.cleandoc(
+                """
+                Text content of this reasoning event
+                """
+            ),
+            default=None,
+        ),
+    ]
+
+
 class SessionElement(BaseModel):
     """
     Represents a single agent session from the AgentSessionManager.
@@ -226,21 +293,22 @@ class DescribeSessionResponse(BaseModel):
     """
     Response model for agent session detail endpoints.
 
-    Provides the full detail of an agent session including the complete event
-    log and the final output text produced by the agent. Use this model to
-    inspect what the agent did and what it returned.
+    Provides the full detail of an agent session including the filtered
+    reasoning event log and the final output text produced by the agent.
+    Use this model to inspect what the agent did and what it returned.
 
     Attributes:
         session_id: Unique session identifier.
         agent_name: Name of the agent that ran.
         status: Session status (RUNNING, COMPLETE, FAILED).
-        output: Final text output produced by the agent (from the
-            inference-succeeded event). None if the session has not yet
-            completed or produced no output.
+        output: Final text output produced by the agent (the last kept
+            reasoning event's text). None if the session has not yet
+            completed or produced no matching reasoning event.
         started_at: ISO 8601 start timestamp.
         end_time: ISO 8601 end timestamp (None if still running).
         duration_ms: Total session duration in milliseconds.
-        messages: Ordered list of session event messages.
+        reasoning_events: Ordered list of kept AGENT_REASONING events (those
+            with data.stopReason == "end_turn").
     """
 
     session_id: Annotated[
@@ -282,9 +350,9 @@ class DescribeSessionResponse(BaseModel):
         Field(
             description=inspect.cleandoc(
                 """
-                Final text output produced by the agent; extracted from the
-                inference-succeeded event. None if the session has not completed
-                or produced no text output.
+                Final text output produced by the agent; taken from the last
+                kept reasoning event's text. None if the session has not
+                completed or produced no matching reasoning event.
                 """
             ),
             default=None,
@@ -327,12 +395,13 @@ class DescribeSessionResponse(BaseModel):
         ),
     ]
 
-    messages: Annotated[
-        list[SessionMessage],
+    reasoning_events: Annotated[
+        list[SessionReasoningEvent],
         Field(
             description=inspect.cleandoc(
                 """
-                Ordered list of session event messages captured during agent execution
+                Ordered list of kept AGENT_REASONING events (those with
+                data.stopReason == "end_turn") captured during agent execution
                 """
             ),
             default_factory=list,
