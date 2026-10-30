@@ -141,6 +141,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   approval, and document the troubleshooting case for an MCP host showing
   "Connection closed" when the subcommand is missing (#413, #425)
 
+### Docs
+- Document the `describe_session` `reasoning_events` field (replacing `messages`)
+  and the `describe_job` `pending_manual_tasks` field in `docs/tools.md` (#412)
+
 ## [0.14.1] - 2026-10-15
 
 ### Fixed
